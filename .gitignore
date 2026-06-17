@@ -1,0 +1,20 @@
+# dependencies
+**/node_modules/
+
+# next.js
+sb-00/.next/
+sb-00/out/
+sb-00/build/
+
+# env / secrets — never commit Supabase keys, Strava tokens, Apple Health creds
+**/.env
+**/.env.local
+**/.env*.local
+
+# logs / os
+*.log
+.DS_Store
+
+# editor
+.vscode/
+.idea/
