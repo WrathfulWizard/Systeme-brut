@@ -141,14 +141,21 @@ console.log('✓ protocol + titration  (test 14→16, deca 7→10) · flags reso
 
 // --- pharmacokinetics: built-in compound library + half-life serum model ---
 {
-  const { lookup, catalog } = require('../dist-electron/desktop/pharma/compounds.js');
+  const { lookup, catalog, injectableCatalog, oralCatalog } = require('../dist-electron/desktop/pharma/compounds.js');
   assert.equal(lookup('Test E').key, 'test_enan', 'Test E resolves to enanthate');
   assert.equal(lookup('Testosterone Cypionate').halfLifeDays, 8, 'cyp t½ 8d');
   assert.equal(lookup('Tren Ace').halfLifeDays, 1, 'tren acetate t½ 1d');
   assert.equal(lookup('Deca Durabolin').klass, 'Nandrolone', 'deca is nandrolone family');
   assert.equal(lookup('Masteron E').character, 'confident', 'masteron flows confident');
   assert.ok(lookup('Tren Ace').character === 'oscillating', 'tren oscillates');
-  assert.ok(catalog().length > 15, 'catalog has the common compounds');
+  assert.ok(catalog().length > 30, 'expanded catalog of common compounds');
+  // injectables-only protocol board vs orals/supplements section
+  assert.ok(injectableCatalog().length > 0 && injectableCatalog().every((c) => c.form === 'injectable'), 'protocol board is injectables only');
+  assert.ok(oralCatalog().every((c) => c.form === 'oral'), 'oral/support list is orals only');
+  assert.equal(lookup('Cialis').key, 'cialis', 'cialis is in the support library');
+  assert.equal(lookup('Accutane').form, 'oral', 'accutane is an oral support compound');
+  assert.equal(lookup('Test E').form, 'injectable', 'test enanthate is injectable');
+  assert.equal(lookup('Anavar').form, 'oral', 'anavar is oral');
 
   const { protocolSerum, discreteSerum } = require('../dist-electron/desktop/pharma/serum.js');
   const anchor = Date.parse('2026-06-18T00:00:00');
@@ -178,7 +185,60 @@ console.log('✓ protocol + titration  (test 14→16, deca 7→10) · flags reso
   assert.ok(s.serumByCompound.every((c) => /^#/.test(c.color) && c.character && c.series.length > 0), 'streams carry colour + character + series');
   const deca = s.serumByCompound.find((c) => /Nandrolone/.test(c.klass));
   assert.ok(deca && deca.character === 'saturated', 'deca stream flows saturated');
+  assert.ok(s.serumByCompound.every((c) => typeof c.steadyState === 'boolean' && typeof c.discontinued === 'boolean' && (c.form === 'injectable' || c.form === 'oral')), 'streams carry steady-state + discontinued + form');
+  assert.ok(test.series.length > 14, 'serum window widened for 3d/1w/4w/8w views');
   console.log(`✓ serum dynamics        (${s.serumByCompound.length} streams: ${s.serumByCompound.map((c) => c.label).join(', ')})`);
+}
+
+// --- discontinued compound keeps clearing in the serum model ---
+{
+  mut.addProtocol({ compound: 'Trenbolone Enanthate', doseMg: 50, route: 'IM', note: 'smoke', startedAt: '2026-05-20' });
+  let s = getSnapshot();
+  const proto = s.protocols.find((p) => /Trenbolone Enanthate/i.test(p.compound));
+  assert.ok(proto, 'backdated tren-e protocol added (active board)');
+  assert.ok(s.serumByCompound.find((c) => /Trenbolone/.test(c.klass) && c.steadyState != null), 'tren-e appears in serum');
+  mut.endProtocol(proto.id);
+  s = getSnapshot();
+  assert.ok(!s.protocols.find((p) => p.id === proto.id), 'discontinued protocol drops off the active board');
+  const disc = s.serumByCompound.find((c) => /Trenbolone/.test(c.klass));
+  assert.ok(disc && disc.discontinued === true && disc.current > 0, 'discontinued compound still clearing in serum');
+  console.log('✓ discontinued clearance (backdated start · ended protocol still represented in serum)');
+}
+
+// --- lab panel: latest value per marker across panels (the one-marker bug) ---
+{
+  mut.addLabPanel({ drawnAt: '2026-06-01', labName: 'A', results: [{ marker: 'Estradiol', value: 30, unit: 'pg/mL', low: 10, high: 40 }] });
+  mut.addLabPanel({ drawnAt: '2026-06-10', labName: 'B', results: [{ marker: 'LH', value: 0.2, unit: 'mIU/mL', low: 1, high: 9 }] });
+  const s = getSnapshot();
+  const markers = s.labResults.map((l) => l.marker);
+  assert.ok(markers.includes('Estradiol') && markers.includes('LH'), 'markers from separate panels both show (no longer one-at-a-time)');
+  assert.ok(s.labResults.find((l) => l.marker === 'LH').flagged, 'out-of-range marker flagged');
+  console.log(`✓ lab consolidation     (${markers.length} markers across panels: ${markers.join(', ')})`);
+}
+
+// --- cronometer CSV import (the reliable, no-403 path) ---
+{
+  const cron = require('../dist-electron/desktop/ingest/cronometer.js');
+  const csv = [
+    'Date,Energy (kcal),Protein (g),Carbs (g),Fat (g),Fiber (g),Omega-3 (g)',
+    '2026-06-15,2700,210,300,80,30,2.1',
+    '2026-06-16,2650,205,290,82,28,1.8',
+  ].join('\n');
+  const n = cron.importCronometerCsv(csv);
+  assert.equal(n, 2, 'imported 2 days from a self-exported CSV');
+  const conn = getSnapshot().syncMeta.connections.find((c) => c.source === 'cronometer');
+  assert.equal(conn.status, 'connected', 'cronometer marked connected after CSV import');
+  console.log('✓ cronometer csv import  (2 days · ToS-clean, no scraper 403)');
+}
+
+// --- strava sport mapping: rides/swims now sync, not just runs ---
+{
+  const { mapSport } = require('../dist-electron/desktop/ingest/strava.js');
+  assert.equal(mapSport({ sport_type: 'Run' }), 'run', 'run maps to run');
+  assert.equal(mapSport({ sport_type: 'MountainBikeRide' }), 'ride', 'MTB maps to ride');
+  assert.equal(mapSport({ sport_type: 'Swim' }), 'swim', 'swim maps to swim');
+  assert.equal(mapSport({ sport_type: 'WeightTraining' }), null, 'non-cardio skipped');
+  console.log('✓ strava multi-sport     (run / ride / swim mapped, non-cardio skipped)');
 }
 
 // --- sweep: SB-Σ raises persistent flags, de-duplicated ---

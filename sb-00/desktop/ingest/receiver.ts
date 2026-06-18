@@ -1,17 +1,46 @@
 import { createServer, type Server } from 'node:http';
+import { networkInterfaces } from 'node:os';
 import { applyHealthExport } from './appleHealth';
 
 /**
  * Local ingestion receiver — the endpoint the phone-side Apple Health bridge
- * (Health Auto Export / a Shortcut) POSTs to on a schedule. Binds to loopback
- * only; an optional bearer token (HEALTH_INGEST_TOKEN) gates writes.
+ * (Health Auto Export / a Shortcut) POSTs to on a schedule.
  *
- *   POST http://<host>:8787/ingest/health   body: Health Auto Export JSON
+ * IMPORTANT: the phone is a *different device* on the same network, so the
+ * server binds to 0.0.0.0 (all interfaces) and the Connections screen shows the
+ * machine's LAN IP — `127.0.0.1` would only be reachable from this PC itself,
+ * never from the phone. An optional bearer token (HEALTH_INGEST_TOKEN) gates
+ * writes for anyone wanting to lock the LAN-exposed endpoint down.
+ *
+ *   POST http://<lan-ip>:8787/ingest/health   body: Health Auto Export JSON
  */
 
-const HOST = '127.0.0.1';
+const BIND = '0.0.0.0';
 export const RECEIVER_PORT = Number(process.env.HEALTH_INGEST_PORT ?? 8787);
-export const HEALTH_ENDPOINT = `http://${HOST}:${RECEIVER_PORT}/ingest/health`;
+
+/** Best-guess LAN IPv4 for this machine, so the phone has a reachable address. */
+export function lanAddress(): string {
+  const ifaces = networkInterfaces();
+  const candidates: string[] = [];
+  for (const list of Object.values(ifaces)) {
+    for (const ni of list ?? []) {
+      if (ni.family === 'IPv4' && !ni.internal) candidates.push(ni.address);
+    }
+  }
+  // Prefer common private ranges (home/office LAN) over anything exotic.
+  const preferred = candidates.find((a) => /^192\.168\./.test(a))
+    ?? candidates.find((a) => /^10\./.test(a))
+    ?? candidates.find((a) => /^172\.(1[6-9]|2\d|3[01])\./.test(a))
+    ?? candidates[0];
+  return preferred ?? '127.0.0.1';
+}
+
+export function healthEndpoint(): string {
+  return `http://${lanAddress()}:${RECEIVER_PORT}/ingest/health`;
+}
+
+// Back-compat constant (loopback form) — prefer healthEndpoint() for display.
+export const HEALTH_ENDPOINT = `http://127.0.0.1:${RECEIVER_PORT}/ingest/health`;
 
 let server: Server | null = null;
 
@@ -52,7 +81,7 @@ export function startReceiver(onIngest?: () => void): Server {
     res.writeHead(404, cors); res.end('not found');
   });
 
-  server.listen(RECEIVER_PORT, HOST);
+  server.listen(RECEIVER_PORT, BIND);
   return server;
 }
 

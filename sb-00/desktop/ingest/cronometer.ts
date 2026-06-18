@@ -191,6 +191,22 @@ export function writeDailyNutrition(days: DailyNutrition[]): number {
   return days.length;
 }
 
+/**
+ * Import a CSV the user exported themselves from Cronometer (Account → Export
+ * Data, or the "Daily Nutrition" export). This is the reliable, ToS-clean path —
+ * no scraping, no 403s, no stored credentials. Returns the number of days
+ * written, or throws if the CSV has no recognizable daily rows.
+ */
+export function importCronometerCsv(csv: string): number {
+  const days = parseDailyNutrition(csv);
+  if (days.length === 0) {
+    throw new Error('No daily rows found — export the "Daily Nutrition" CSV (a Date column with YYYY-MM-DD).');
+  }
+  const n = writeDailyNutrition(days);
+  setConnection('cronometer', { status: 'connected', detail: `CSV import · ${n} days`, lastSyncAt: new Date().toISOString() });
+  return n;
+}
+
 /** Login with stored creds, pull the trailing 14 days, write to DB. */
 export async function syncCronometer(): Promise<number> {
   const cred = getCronometer();

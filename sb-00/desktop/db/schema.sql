@@ -37,8 +37,21 @@ CREATE TABLE IF NOT EXISTS cardio_sessions (
   pace_avg_sec_per_km INTEGER,
   elevation_gain_m REAL,
   splits TEXT,                       -- JSON
+  sport TEXT NOT NULL DEFAULT 'run', -- run / ride / swim
+  gear_id TEXT,                      -- Strava gear id (links to gear.external_id)
   source TEXT NOT NULL DEFAULT 'manual',
   external_id TEXT UNIQUE
+);
+
+-- Running shoes / bikes with accumulated mileage (synced from Strava gear).
+CREATE TABLE IF NOT EXISTS gear (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  external_id TEXT UNIQUE,           -- Strava gear id, or NULL for manual
+  name TEXT NOT NULL,
+  kind TEXT NOT NULL DEFAULT 'shoe', -- shoe / bike
+  distance_m REAL NOT NULL DEFAULT 0,
+  retired INTEGER NOT NULL DEFAULT 0,
+  source TEXT NOT NULL DEFAULT 'manual'
 );
 
 CREATE TABLE IF NOT EXISTS goals (
@@ -172,6 +185,7 @@ CREATE TABLE IF NOT EXISTS protocols (
   route TEXT,
   started_at TEXT NOT NULL,
   active INTEGER NOT NULL DEFAULT 1,
+  ended_at TEXT,                          -- set when discontinued; serum keeps clearing
   note TEXT
 );
 

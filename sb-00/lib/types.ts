@@ -32,8 +32,10 @@ export interface AdminRow {
   iso: string; doseMg: number; routeRaw: string;
 }
 export interface TitrationRow { id: number; date: string; compound: string; change: string; trigger: string; }
-export interface LabResult { marker: string; value: string; range: string; flagged: boolean; }
+export interface LabResult { marker: string; value: string; range: string; flagged: boolean; at?: string; }
 export interface SerumPoint { day: string; mg: number; }
+/** A running shoe / bike with accumulated mileage (Strava gear or manual). */
+export interface GearRow { id: number; name: string; kind: 'shoe' | 'bike'; km: number; retired: boolean; source: string; }
 
 /** Per-compound estimated serum, for the Serum Dynamics visual. */
 export type SerumCharacter = 'steady' | 'confident' | 'oscillating' | 'saturated';
@@ -46,7 +48,10 @@ export interface SerumCompound {
   halfLifeDays: number;
   current: number;        // estimated mg in system now
   peak: number;           // max over the window
-  series: SerumPoint[];   // estimated serum over the window
+  series: SerumPoint[];   // estimated serum over the window (up to 56d)
+  steadyState: boolean;   // has the protocol run ≥ ~4.3 half-lives (plateau)?
+  discontinued: boolean;  // protocol ended but compound still clearing
+  form: 'injectable' | 'oral';
 }
 export interface TotalRow { nutrient: string; today: string; target: string; delta: string; }
 export interface CaloriePoint { day: string; kcal: number; }
@@ -63,6 +68,8 @@ export interface Snapshot {
   cardioProgression: CardioPoint[];
   recentRuns: RunRow[];
   cardioBySport: { sport: Sport; count: number; distanceKm: number }[];
+  /** running shoes / bikes + accumulated mileage */
+  gear: GearRow[];
   protocols: ProtocolRow[];
   administrations: AdminRow[];
   titration: TitrationRow[];
@@ -93,7 +100,7 @@ export interface AdminInput { compound: string; doseMg: number; route: string; a
 export interface TitrationInput { compound: string; before?: number; after: number; notes?: string; changedAt: string; }
 export interface LabResultInput { marker: string; value: number; unit?: string; low?: number; high?: number; }
 export interface LabPanelInput { drawnAt: string; labName?: string; results: LabResultInput[]; }
-export interface ProtocolInput { compound: string; doseMg: number; route: string; note?: string; }
+export interface ProtocolInput { compound: string; doseMg: number; route: string; note?: string; startedAt?: string; }
 
 /* ---- SB-Σ agent --------------------------------------------------------- */
 export interface ChatMessage { role: 'user' | 'assistant' | 'system'; content: string; }
@@ -150,6 +157,8 @@ export interface SbBridge {
   getConnections(): Promise<SyncMeta>;
   connectStrava(): Promise<SyncMeta>;
   connectCronometer(username: string, password: string): Promise<ConnectionState>;
+  /** Import a Cronometer CSV the user exported themselves (ToS-clean, reliable). */
+  importCronometerCsv(csv: string): Promise<{ ok: boolean; days: number; error?: string }>;
   disconnect(source: SourceId): Promise<SyncMeta>;
   syncNow(source?: SourceId): Promise<SyncMeta>;
   onSyncUpdate(cb: (meta: SyncMeta) => void): () => void;

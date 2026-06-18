@@ -3,7 +3,7 @@ import type { SourceId, SyncMeta } from '../../lib/types';
 import { syncStrava } from './strava';
 import { syncCronometer } from './cronometer';
 import { setStrava, setCronometer, getStrava, getCronometer } from './secrets';
-import { startReceiver, stopReceiver, HEALTH_ENDPOINT } from './receiver';
+import { startReceiver, stopReceiver, healthEndpoint } from './receiver';
 
 /**
  * Ingestion orchestrator — owns the receiver + the periodic poll loop, and is
@@ -22,7 +22,7 @@ function emit() { broadcast?.(meta()); }
 
 export function meta(): SyncMeta {
   const m = getSyncMeta();
-  m.healthEndpoint = HEALTH_ENDPOINT;
+  m.healthEndpoint = healthEndpoint();
   return m;
 }
 
@@ -64,4 +64,4 @@ export function disconnect(source: SourceId): SyncMeta {
   return meta();
 }
 
-export { HEALTH_ENDPOINT };
+export { healthEndpoint };

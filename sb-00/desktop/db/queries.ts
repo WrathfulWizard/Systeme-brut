@@ -118,6 +118,21 @@ export function getSnapshot(): Snapshot {
   ).all() as { sport: string; n: number; km: number }[])
     .map((r) => ({ sport: r.sport as 'run' | 'ride' | 'swim', count: r.n, distanceKm: Math.round(r.km * 10) / 10 }));
 
+  // Running shoes / bikes + mileage. Strava reports cumulative metres on the gear
+  // itself; fall back to summing sessions tagged with this gear id.
+  const gear = (db.prepare(`
+    SELECT g.id AS id, g.name AS name, g.kind AS kind, g.retired AS retired, g.source AS source,
+           g.external_id AS ext, g.distance_m AS dist
+    FROM gear g ORDER BY g.retired ASC, g.distance_m DESC
+  `).all() as { id: number; name: string; kind: string; retired: number; source: string; ext: string | null; dist: number }[])
+    .map((g) => {
+      const summed = g.ext
+        ? (db.prepare('SELECT COALESCE(SUM(distance_km),0) AS km FROM cardio_sessions WHERE gear_id = ?').get(g.ext) as { km: number }).km
+        : 0;
+      const km = Math.max(g.dist / 1000, summed);
+      return { id: g.id, name: g.name, kind: (g.kind === 'bike' ? 'bike' : 'shoe') as 'shoe' | 'bike', km: Math.round(km * 10) / 10, retired: !!g.retired, source: g.source };
+    });
+
   // pharmacology — continuous protocols
   const compounds = db.prepare('SELECT id, name, half_life_hours AS hl FROM compounds').all() as
     { id: number; name: string; hl: number }[];
@@ -148,14 +163,27 @@ export function getSnapshot(): Snapshot {
   `).all() as { id: number; at: string; compound: string; b: number; a2: number; notes: string }[])
     .map((r) => ({ id: r.id, date: md(r.at), compound: r.compound, change: `${r.b}mg → ${r.a2}mg`, trigger: r.notes }));
 
-  const latestPanel = db.prepare('SELECT id FROM lab_panels ORDER BY drawn_at DESC LIMIT 1').get() as { id: number } | undefined;
+  const latestPanel = db.prepare('SELECT id FROM lab_panels ORDER BY drawn_at DESC, id DESC LIMIT 1').get() as { id: number } | undefined;
+  // Show the MOST RECENT reading for EACH marker across all panels — so logging
+  // markers across separate panels/days still surfaces them all, not just the
+  // single latest panel (the old behaviour showed one marker at a time).
   const labResults = (db.prepare(`
-    SELECT marker, value, unit, range_low AS lo, range_high AS hi FROM lab_results
-    WHERE panel_id = ? ORDER BY id
-  `).all(latestPanel?.id ?? -1) as { marker: string; value: number; unit: string; lo: number; hi: number }[])
+    SELECT lr.marker AS marker, lr.value AS value, lr.unit AS unit,
+           lr.range_low AS lo, lr.range_high AS hi, lp.drawn_at AS at
+    FROM lab_results lr
+    JOIN lab_panels lp ON lp.id = lr.panel_id
+    JOIN (
+      SELECT lr2.marker AS marker, MAX(lp2.drawn_at) AS maxd
+      FROM lab_results lr2 JOIN lab_panels lp2 ON lp2.id = lr2.panel_id
+      GROUP BY lr2.marker
+    ) latest ON latest.marker = lr.marker AND latest.maxd = lp.drawn_at
+    GROUP BY lr.marker ORDER BY lr.marker
+  `).all() as { marker: string; value: number; unit: string; lo: number; hi: number; at: string }[])
     .map((r) => ({
-      marker: r.marker, value: `${r.value} ${r.unit}`.trim(), range: `${r.lo}–${r.hi}`,
-      flagged: r.value < r.lo || r.value > r.hi,
+      marker: r.marker, value: `${r.value} ${r.unit ?? ''}`.trim(),
+      range: r.lo != null && r.hi != null ? `${r.lo}–${r.hi}` : '—',
+      flagged: (r.lo != null && r.value < r.lo) || (r.hi != null && r.value > r.hi),
+      at: md(r.at),
     }));
 
   // estimated serum per active compound (half-life model) — drives the visual
@@ -210,7 +238,7 @@ export function getSnapshot(): Snapshot {
   };
 
   return {
-    insights, recentSets, prLog, tonnage, cardioGoal, cardioProgression, recentRuns, cardioBySport,
+    insights, recentSets, prLog, tonnage, cardioGoal, cardioProgression, recentRuns, cardioBySport, gear,
     protocols, administrations, titration, labResults, serum7d, serumByCompound,
     dailyTotals, calories7d, vitamins, minerals, weightGoal,
     session: { id: 'SB-00', clock: '03:14:09' },
@@ -228,20 +256,24 @@ export function getSnapshot(): Snapshot {
  * Half-life and the stream's colour/character come from the built-in library
  * (the DB's half_life_hours wins when it's set).
  */
+const SERUM_WINDOW_DAYS = 56; // 8 weeks — enough for the per-compound 3d/1w/4w/8w views
+
 function buildSerumByCompound(): SerumCompound[] {
   const db = getDb();
   const dayMsOf = (s: string) => new Date(s.slice(0, 10) + 'T00:00:00').getTime();
 
-  const active = db.prepare(`
-    SELECT p.compound_id AS cid, c.name AS name, c.half_life_hours AS hl,
-           p.daily_dose_mg AS dose, p.started_at AS since
+  // Active AND recently-ended protocols: a discontinued compound keeps clearing,
+  // so it should still appear (decaying) until serum is negligible.
+  const protos = db.prepare(`
+    SELECT p.id AS id, p.compound_id AS cid, c.name AS name, c.half_life_hours AS hl,
+           p.daily_dose_mg AS dose, p.started_at AS since, p.active AS active, p.ended_at AS ended
     FROM protocols p JOIN compounds c ON c.id = p.compound_id
-    WHERE p.active = 1 ORDER BY c.id
-  `).all() as { cid: number; name: string; hl: number | null; dose: number; since: string }[];
+    ORDER BY c.id
+  `).all() as { id: number; cid: number; name: string; hl: number | null; dose: number; since: string; active: number; ended: string | null }[];
 
   const out: SerumCompound[] = [];
 
-  for (const p of active) {
+  for (const p of protos) {
     const info = lookup(p.name);
     const halfLifeDays = p.hl && p.hl > 0 ? p.hl / 24 : info.halfLifeDays;
 
@@ -251,13 +283,24 @@ function buildSerumByCompound(): SerumCompound[] {
 
     const initial = tits.length ? (tits[0].before ?? p.dose) : p.dose;
     const steps = [{ t: dayMsOf(p.since), dose: initial }, ...tits.map((t) => ({ t: dayMsOf(t.at), dose: t.after }))];
-    const series = protocolSerum(steps, halfLifeDays, { windowDays: 14 });
+    // A discontinued protocol stops dosing at ended_at → append a zero step.
+    const discontinued = p.active === 0;
+    if (discontinued && p.ended) steps.push({ t: dayMsOf(p.ended), dose: 0 });
+    const series = protocolSerum(steps, halfLifeDays, { windowDays: SERUM_WINDOW_DAYS });
     if (series.length === 0) continue;
+    const current = series[series.length - 1].mg;
+    // Drop a discontinued compound once it's effectively cleared (≤1mg or <2% peak).
+    const peak = series.reduce((m, s) => Math.max(m, s.mg), 0);
+    if (discontinued && (current <= 1 || current < peak * 0.02)) continue;
+
+    // Steady state ≈ 4.3 half-lives of continuous dosing (~95% of plateau).
+    const daysRunning = (Date.now() - dayMsOf(p.since)) / 86_400_000;
+    const steadyState = !discontinued && daysRunning >= halfLifeDays * 4.3;
 
     out.push({
       key: info.key, label: info.shortLabel, klass: info.klass, color: info.color,
       character: info.character, halfLifeDays: Math.round(halfLifeDays * 10) / 10,
-      current: series[series.length - 1].mg, peak: series.reduce((m, s) => Math.max(m, s.mg), 0), series,
+      current, peak, series, steadyState, discontinued, form: info.form,
     });
   }
 
@@ -265,7 +308,7 @@ function buildSerumByCompound(): SerumCompound[] {
   const loose = db.prepare(`
     SELECT a.compound_id AS cid, c.name AS name, c.half_life_hours AS hl
     FROM administrations a JOIN compounds c ON c.id = a.compound_id
-    WHERE a.compound_id NOT IN (SELECT compound_id FROM protocols WHERE active = 1)
+    WHERE a.compound_id NOT IN (SELECT compound_id FROM protocols)
     GROUP BY a.compound_id
   `).all() as { cid: number; name: string; hl: number | null }[];
 
@@ -275,12 +318,13 @@ function buildSerumByCompound(): SerumCompound[] {
     const admins = db.prepare(
       'SELECT administered_at AS at, dose_mg AS dose FROM administrations WHERE compound_id = ?',
     ).all(l.cid) as { at: string; dose: number }[];
-    const series = discreteSerum(admins.map((a) => ({ t: dayMsOf(a.at), dose: a.dose })), halfLifeDays, { windowDays: 14 });
+    const series = discreteSerum(admins.map((a) => ({ t: dayMsOf(a.at), dose: a.dose })), halfLifeDays, { windowDays: SERUM_WINDOW_DAYS });
     if (series.length === 0 || series.every((s) => s.mg === 0)) continue;
     out.push({
       key: info.key, label: info.shortLabel, klass: info.klass, color: info.color,
       character: info.character, halfLifeDays: Math.round(halfLifeDays * 10) / 10,
-      current: series[series.length - 1].mg, peak: series.reduce((m, s) => Math.max(m, s.mg), 0), series,
+      current: series[series.length - 1].mg, peak: series.reduce((m, s) => Math.max(m, s.mg), 0),
+      series, steadyState: false, discontinued: false, form: info.form,
     });
   }
 

@@ -19,6 +19,7 @@ interface Ctx {
   refresh: () => Promise<void>;
   connectStrava: () => Promise<void>;
   connectCronometer: (u: string, p: string) => Promise<ConnectionState | void>;
+  importCronometerCsv: (csv: string) => Promise<{ ok: boolean; days: number; error?: string }>;
   disconnect: (s: SourceId) => Promise<void>;
   syncNow: (s?: SourceId) => Promise<void>;
   addSet: (input: LiftInput) => Promise<void>;
@@ -86,6 +87,12 @@ export function Providers({ children }: { children: React.ReactNode }) {
       const c = await window.sb.connectCronometer(u, p);
       await refresh();
       return c;
+    },
+    importCronometerCsv: async (csv: string) => {
+      if (!window.sb) return { ok: false, days: 0, error: 'desktop only' };
+      const r = await window.sb.importCronometerCsv(csv);
+      await refresh();
+      return r;
     },
     disconnect: async (s) => { if (window.sb) setSync(await window.sb.disconnect(s)); await refresh(); },
     syncNow: async (s) => { if (window.sb) setSync(await window.sb.syncNow(s)); await refresh(); },

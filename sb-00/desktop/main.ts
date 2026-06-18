@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, shell } from 'electron';
+import { app, BrowserWindow, ipcMain, shell, Menu } from 'electron';
 import { join } from 'node:path';
 import { createServer, type Server } from 'node:http';
 import { readFile } from 'node:fs/promises';
@@ -18,7 +18,7 @@ import type { LiftInput, AdminInput, TitrationInput, LabPanelInput, ProtocolInpu
 import { initSecrets, setCronometer, setStravaApp } from './ingest/secrets';
 import { startIngestion, stopIngestion, syncNow, disconnect, meta } from './ingest/index';
 import { buildAuthUrl, exchangeCode, syncStrava, STRAVA_REDIRECT_PORT } from './ingest/strava';
-import { syncCronometer } from './ingest/cronometer';
+import { syncCronometer, importCronometerCsv } from './ingest/cronometer';
 import type { SourceId } from '../lib/types';
 
 const DEV = !!process.env.SB_DEV;
@@ -88,6 +88,10 @@ function registerIpc() {
     try { await syncCronometer(); } catch { /* recorded as error state */ }
     return meta().connections.find((c) => c.source === 'cronometer')!;
   });
+  ipcMain.handle('sb:importCronometerCsv', (_e, csv: string) => {
+    try { const days = importCronometerCsv(csv); return { ok: true, days }; }
+    catch (e) { return { ok: false, days: 0, error: (e as Error).message }; }
+  });
   ipcMain.handle('sb:disconnect', (_e, source: SourceId) => disconnect(source));
   ipcMain.handle('sb:syncNow', (_e, source?: SourceId) => syncNow(source));
 
@@ -129,9 +133,13 @@ function registerIpc() {
 }
 
 async function createWindow() {
+  // No File/Edit/View/Window chrome — this is a single-purpose command center,
+  // not a document editor. Removing the default menu reclaims the title strip.
+  Menu.setApplicationMenu(null);
   win = new BrowserWindow({
     width: 1360, height: 900, backgroundColor: '#0d0d0e',
     title: 'Systeme Brut // SB-00',
+    autoHideMenuBar: true,
     webPreferences: { preload: join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false },
   });
   if (DEV) {

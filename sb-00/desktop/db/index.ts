@@ -38,11 +38,31 @@ function migrate(db: Database.Database) {
   if (!cols.some((c) => c.name === 'sport')) {
     db.exec("ALTER TABLE cardio_sessions ADD COLUMN sport TEXT NOT NULL DEFAULT 'run'");
   }
+  // cardio_sessions.gear_id (links a session to a shoe/bike in `gear`)
+  if (!cols.some((c) => c.name === 'gear_id')) {
+    db.exec('ALTER TABLE cardio_sessions ADD COLUMN gear_id TEXT');
+  }
+  // gear table (running shoes / bikes + mileage) for DBs created before it landed
+  db.exec(`CREATE TABLE IF NOT EXISTS gear (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    external_id TEXT UNIQUE,
+    name TEXT NOT NULL,
+    kind TEXT NOT NULL DEFAULT 'shoe',
+    distance_m REAL NOT NULL DEFAULT 0,
+    retired INTEGER NOT NULL DEFAULT 0,
+    source TEXT NOT NULL DEFAULT 'manual'
+  )`);
 
   // insights.dedup_key (SB-Σ sweep: stable slug so a flag isn't re-raised).
   const icols = db.prepare('PRAGMA table_info(insights)').all() as { name: string }[];
   if (!icols.some((c) => c.name === 'dedup_key')) {
     db.exec('ALTER TABLE insights ADD COLUMN dedup_key TEXT');
+  }
+
+  // protocols.ended_at (discontinued compounds keep clearing from the end date).
+  const pcols = db.prepare('PRAGMA table_info(protocols)').all() as { name: string }[];
+  if (!pcols.some((c) => c.name === 'ended_at')) {
+    db.exec('ALTER TABLE protocols ADD COLUMN ended_at TEXT');
   }
 
   // Backfill a continuous protocol from each compound's latest dose.

@@ -50,6 +50,11 @@ export const seedSnapshot: Snapshot = {
     { sport: 'ride', count: 1, distanceKm: 32.0 },
     { sport: 'swim', count: 1, distanceKm: 1.5 },
   ],
+  gear: [
+    { id: 1, name: 'Nike Vaporfly 3', kind: 'shoe', km: 214.6, retired: false, source: 'strava' },
+    { id: 2, name: 'Hoka Clifton 9', kind: 'shoe', km: 488.2, retired: false, source: 'strava' },
+    { id: 3, name: 'Canyon Endurace', kind: 'bike', km: 1240.0, retired: false, source: 'strava' },
+  ],
   protocols: [
     { id: 1, compound: 'Testosterone Cyp', dose: '14mg daily', route: 'IM', doseMg: 14, route_raw: 'IM', since: '05.01' },
     { id: 2, compound: 'Anavar', dose: '20mg daily', route: 'Oral', doseMg: 20, route_raw: 'oral', since: '05.20' },
@@ -77,16 +82,16 @@ export const seedSnapshot: Snapshot = {
   ],
   serumByCompound: [
     { key: 'test_enan', label: 'TEST E', klass: 'Testosterone', color: '#6fc6d6', character: 'steady',
-      halfLifeDays: 4.5, current: 312, peak: 312,
+      halfLifeDays: 4.5, current: 312, peak: 312, steadyState: true, discontinued: false, form: 'injectable',
       series: [{ day: 'Mon', mg: 240 }, { day: 'Wed', mg: 270 }, { day: 'Fri', mg: 295 }, { day: 'Sun', mg: 312 }] },
     { key: 'mast_e', label: 'MAST E', klass: 'Drostanolone', color: '#c89b3a', character: 'confident',
-      halfLifeDays: 5, current: 188, peak: 188,
+      halfLifeDays: 5, current: 188, peak: 188, steadyState: true, discontinued: false, form: 'injectable',
       series: [{ day: 'Mon', mg: 150 }, { day: 'Wed', mg: 168 }, { day: 'Fri', mg: 180 }, { day: 'Sun', mg: 188 }] },
     { key: 'deca', label: 'DECA', klass: 'Nandrolone', color: '#cf7a2e', character: 'saturated',
-      halfLifeDays: 7, current: 240, peak: 240,
+      halfLifeDays: 7, current: 240, peak: 240, steadyState: false, discontinued: false, form: 'injectable',
       series: [{ day: 'Mon', mg: 180 }, { day: 'Wed', mg: 205 }, { day: 'Fri', mg: 226 }, { day: 'Sun', mg: 240 }] },
     { key: 'tren_a', label: 'TREN A', klass: 'Trenbolone', color: '#d23123', character: 'oscillating',
-      halfLifeDays: 1, current: 96, peak: 110,
+      halfLifeDays: 1, current: 96, peak: 110, steadyState: true, discontinued: false, form: 'injectable',
       series: [{ day: 'Mon', mg: 88 }, { day: 'Wed', mg: 104 }, { day: 'Fri', mg: 92 }, { day: 'Sun', mg: 96 }] },
   ],
   dailyTotals: [

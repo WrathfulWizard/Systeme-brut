@@ -9,9 +9,9 @@ const LABEL: Record<SourceId, string> = {
   strava: 'Strava', cronometer: 'Cronometer', apple_health: 'Apple Health',
 };
 const HOW: Record<SourceId, string> = {
-  strava: 'Real API — OAuth, then activities pull on a 15-min schedule into Cardio.',
-  cronometer: 'Unofficial — logs in with your credentials (stored OS-encrypted) and pulls the daily export hourly.',
-  apple_health: 'Push only — point the Health Auto Export app (or a Shortcut) at the endpoint below; data arrives on its own.',
+  strava: 'Real API — OAuth, then runs/rides/swims pull on a 15-min schedule into Cardio.',
+  cronometer: 'Import the CSV you export from Cronometer (reliable, no login). Or link credentials to auto-pull the daily export.',
+  apple_health: 'Push only — point the Health Auto Export app (or a Shortcut) at the endpoint below. Phone and PC must be on the same Wi-Fi.',
 };
 
 function dot(status: ConnectionState['status']) {
@@ -20,12 +20,25 @@ function dot(status: ConnectionState['status']) {
 }
 
 export default function Connections() {
-  const { sync, isDesktop, connectStrava, connectCronometer, disconnect, syncNow, saveStravaApp, agent, refreshAgent, setAgentModel } = useSb();
+  const { sync, isDesktop, connectStrava, connectCronometer, importCronometerCsv, disconnect, syncNow, saveStravaApp, agent, refreshAgent, setAgentModel } = useSb();
   const [cronUser, setCronUser] = useState('');
   const [cronPass, setCronPass] = useState('');
+  const [cronNote, setCronNote] = useState('');
   const [stravaId, setStravaId] = useState('');
   const [stravaSecret, setStravaSecret] = useState('');
   const [busy, setBusy] = useState<SourceId | null>(null);
+
+  const onCronCsv = async (file?: File) => {
+    if (!file) return;
+    setBusy('cronometer'); setCronNote('Reading CSV…');
+    try {
+      const text = await file.text();
+      const r = await importCronometerCsv(text);
+      setCronNote(r.ok ? `Imported ${r.days} day${r.days === 1 ? '' : 's'} from ${file.name}.` : `⚠ ${r.error ?? 'Import failed.'}`);
+    } catch (e) {
+      setCronNote(`⚠ ${(e as Error).message}`);
+    } finally { setBusy(null); }
+  };
 
   const get = (s: SourceId) => sync.connections.find((c) => c.source === s)
     ?? { source: s, status: 'disconnected' as const };
@@ -94,25 +107,49 @@ export default function Connections() {
               )}
 
               {s === 'cronometer' && (
-                c.status === 'connected'
-                  ? <div className="btnrow-inline">
-                      <button className="btn" disabled={busy === s} onClick={wrap(s, () => syncNow('cronometer'))}>Sync now</button>
-                      <button className="btn" disabled={busy === s} onClick={wrap(s, () => disconnect('cronometer'))}>Disconnect</button>
-                    </div>
-                  : <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-                      <input className="fld" placeholder="email" value={cronUser} onChange={(e) => setCronUser(e.target.value)} />
-                      <input className="fld" placeholder="password" type="password" value={cronPass} onChange={(e) => setCronPass(e.target.value)} />
-                      <button className="btn" disabled={!isDesktop || busy === s || !cronUser || !cronPass}
-                        onClick={wrap(s, async () => { await connectCronometer(cronUser, cronPass); setCronPass(''); })}>
-                        {busy === s ? 'Linking…' : 'Link account'}
-                      </button>
-                    </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {/* Primary: import a CSV the user exported themselves (reliable). */}
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+                    <label className="btn" style={{ cursor: isDesktop ? 'pointer' : 'default' }}>
+                      {busy === s ? 'Importing…' : 'Import CSV'}
+                      <input type="file" accept=".csv,text/csv" disabled={!isDesktop || busy === s} style={{ display: 'none' }}
+                        onChange={(e) => onCronCsv(e.target.files?.[0])} />
+                    </label>
+                    <span className="mono" style={{ fontSize: 11, color: 'var(--dim)' }}>
+                      Cronometer → Account → Export Data → “Daily Nutrition”.
+                    </span>
+                  </div>
+                  {cronNote && <p className="mono" style={{ fontSize: 11, color: 'var(--text)', margin: 0 }}>{cronNote}</p>}
+                  {/* Secondary: credential auto-pull (unofficial, may break). */}
+                  {c.status === 'connected'
+                    ? <div className="btnrow-inline">
+                        <button className="btn" disabled={busy === s} onClick={wrap(s, () => syncNow('cronometer'))}>Sync now</button>
+                        <button className="btn" disabled={busy === s} onClick={wrap(s, () => disconnect('cronometer'))}>Disconnect</button>
+                      </div>
+                    : <details>
+                        <summary className="mono" style={{ fontSize: 11, color: 'var(--dim)', cursor: 'pointer' }}>Auto-pull with login (unofficial)</summary>
+                        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginTop: 8 }}>
+                          <input className="fld" placeholder="email" value={cronUser} onChange={(e) => setCronUser(e.target.value)} />
+                          <input className="fld" placeholder="password" type="password" value={cronPass} onChange={(e) => setCronPass(e.target.value)} />
+                          <button className="btn" disabled={!isDesktop || busy === s || !cronUser || !cronPass}
+                            onClick={wrap(s, async () => { await connectCronometer(cronUser, cronPass); setCronPass(''); })}>
+                            {busy === s ? 'Linking…' : 'Link account'}
+                          </button>
+                        </div>
+                      </details>}
+                </div>
               )}
 
               {s === 'apple_health' && (
-                <div className="mono" style={{ fontSize: 11.5 }}>
-                  <span style={{ color: 'var(--dim)' }}>POST endpoint:&nbsp;</span>
-                  <span style={{ color: 'var(--text)' }}>{sync.healthEndpoint ?? 'http://<this-machine>:8787/ingest/health'}</span>
+                <div className="mono" style={{ fontSize: 11.5, lineHeight: 1.7 }}>
+                  <div>
+                    <span style={{ color: 'var(--dim)' }}>POST endpoint:&nbsp;</span>
+                    <span style={{ color: 'var(--text)' }}>{sync.healthEndpoint ?? 'http://<this-machine>:8787/ingest/health'}</span>
+                  </div>
+                  <div style={{ color: 'var(--dim)', marginTop: 4 }}>
+                    This is your PC&apos;s LAN address — paste it into Health Auto Export&apos;s REST API URL. If it shows
+                    127.0.0.1 the PC has no Wi-Fi/LAN IP; connect to a network and re-open this screen.
+                  </div>
                 </div>
               )}
             </div>

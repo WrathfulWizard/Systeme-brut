@@ -119,6 +119,7 @@ export function ProtocolAddForm() {
   const [compound, setCompound] = useState('');
   const [dose, setDose] = useState('');
   const [route, setRoute] = useState('IM');
+  const [started, setStarted] = useState(today());
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
 
@@ -127,8 +128,8 @@ export function ProtocolAddForm() {
   const submit = async () => {
     setBusy(true);
     try {
-      await addProtocol({ compound: compound.trim(), doseMg: Number(dose), route, note: note.trim() || undefined });
-      setCompound(''); setDose(''); setNote(''); setOpen(false);
+      await addProtocol({ compound: compound.trim(), doseMg: Number(dose), route, note: note.trim() || undefined, startedAt: started });
+      setCompound(''); setDose(''); setNote(''); setStarted(today()); setOpen(false);
     } finally { setBusy(false); }
   };
 
@@ -146,6 +147,8 @@ export function ProtocolAddForm() {
           <div className="field"><label>Route</label>
             <select className="fld" value={route} onChange={(e) => setRoute(e.target.value)}>
               <option>IM</option><option>SubQ</option><option value="oral">Oral</option></select></div>
+          <div className="field"><label>Started</label>
+            <input className="fld" type="date" max={today()} value={started} onChange={(e) => setStarted(e.target.value)} /></div>
           <div className="field" style={{ flex: 1 }}><label>Note</label>
             <input className="fld" style={{ width: '100%' }} value={note} onChange={(e) => setNote(e.target.value)} /></div>
           <button className="btn primary" disabled={!valid || busy} onClick={submit}>{busy ? 'Saving…' : 'Start protocol'}</button>

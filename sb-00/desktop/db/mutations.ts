@@ -118,9 +118,12 @@ const todayDate = () => nowIso().slice(0, 10);
 export function addProtocol(input: ProtocolInput) {
   const db = getDb();
   const compoundId = ensureCompound(input.compound);
+  // Allow backdating so protocols started before adopting the app estimate serum
+  // correctly. Guard against a future date.
+  const startedAt = input.startedAt && input.startedAt <= todayDate() ? input.startedAt.slice(0, 10) : todayDate();
   db.prepare(
     'INSERT INTO protocols (compound_id, daily_dose_mg, route, started_at, active, note) VALUES (?,?,?,?,1,?)',
-  ).run(compoundId, input.doseMg, input.route, todayDate(), input.note ?? null);
+  ).run(compoundId, input.doseMg, input.route, startedAt, input.note ?? null);
 }
 
 /** Change a running protocol's dose; logs the before→after as a titration. */
@@ -139,7 +142,8 @@ export function titrateProtocol(id: number, newDoseMg: number, note?: string) {
 }
 
 export function endProtocol(id: number) {
-  getDb().prepare('UPDATE protocols SET active = 0 WHERE id = ?').run(id);
+  // Record the end date so the serum model keeps decaying the compound from here.
+  getDb().prepare('UPDATE protocols SET active = 0, ended_at = ? WHERE id = ?').run(todayDate(), id);
 }
 
 export function deleteProtocol(id: number) {
