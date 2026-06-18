@@ -31,7 +31,10 @@ INSERT INTO cardio_sessions (occurred_at, distance_km, pace_avg_sec_per_km, sour
 
 INSERT INTO compounds (id, name, class, default_route, half_life_hours) VALUES
   (1,'Testosterone Cyp','androgen','IM',192),
-  (2,'Anavar','oral','oral',9);
+  (2,'Anavar','oral','oral',9),
+  (3,'Masteron E','androgen','IM',120),
+  (4,'Trenbolone Acetate','androgen','IM',24),
+  (5,'Deca Durabolin','androgen','IM',168);
 
 -- Continuous daily micro-dosing — gives the serum estimate a real accumulation curve.
 INSERT INTO administrations (compound_id, administered_at, dose_mg, route) VALUES
@@ -94,7 +97,10 @@ INSERT INTO connections (source, status) VALUES
 -- Continuous protocol (replaces ad-hoc daily dose logging)
 INSERT INTO protocols (compound_id, daily_dose_mg, route, started_at, active, note) VALUES
   (1,14,'IM','2026-05-01',1,'TRT base, micro-dosed daily'),
-  (2,20,'oral','2026-05-20',1,'8-week oral run');
+  (2,20,'oral','2026-05-20',1,'8-week oral run'),
+  (3,12,'IM','2026-05-10',1,'Hardener — burnished gold, confident stream'),
+  (4,10,'IM','2026-05-25',1,'Short ester, daily — crimson, oscillating'),
+  (5,15,'IM','2026-05-05',1,'Joint support / mass — saturated orange');
 
 -- Bodyweight trend + weight goal (for the Substrate node + the goal corner)
 INSERT INTO goals (node, metric, target_value, unit, target_date, status, notes) VALUES

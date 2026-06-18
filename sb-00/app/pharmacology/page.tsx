@@ -11,15 +11,12 @@ import { useSb } from '../providers';
 
 export default function Pharmacology() {
   const { snapshot, endProtocol, deleteProtocol, deleteTitration, deleteLabPanel, resolveInsight, isDesktop } = useSb();
-  const { insights, protocols, titration, labResults, labPanelId, serum7d } = snapshot;
+  const { insights, protocols, titration, labResults, labPanelId, serum7d, serumByCompound } = snapshot;
   const pharmFlags = insights.filter((i) => i.nodes.includes('pharmacology'));
   const [titrating, setTitrating] = useState<number | null>(null);
 
   const serumRows = asciiBars(serum7d.map((s) => ({ label: s.day, value: s.mg, display: `${s.mg}mg` })));
-  const peak = serum7d.length ? serum7d.reduce((m, s) => Math.max(m, s.mg), 1) : 1;
-  const pick = (i: number) => serum7d[i] ?? serum7d[serum7d.length - 1] ?? { mg: 0 };
-  const levels = [pick(0), pick(2), pick(4), pick(6)].map((s) => Math.round((s.mg / peak) * 100));
-  const current = serum7d.length ? serum7d[serum7d.length - 1].mg : 0;
+  const totalCurrent = serumByCompound.reduce((m, c) => m + c.current, 0);
 
   return (
     <div className="page">
@@ -58,12 +55,15 @@ export default function Pharmacology() {
         </div>
 
         <div className="block">
-          <p className="eyebrow">Estimated serum — testosterone, 7d</p>
-          <div className="liquid-card">
-            <span className="tag">Visual readout</span>
-            <SerumLiquidRender levels={levels} />
-            <div className="read">{current}<span className="v">mg, current</span></div>
+          <p className="eyebrow">Serum dynamics — estimated, half-life model</p>
+          <div className="liquid-card tall">
+            <span className="tag">Serum Dynamics</span>
+            <SerumLiquidRender compounds={serumByCompound} />
+            <div className="read">{totalCurrent}<span className="v">mg total in system</span></div>
           </div>
+          <p className="synced-note">
+            Estimated from your log + each compound&apos;s half-life. Relative units for trend &amp; accumulation — not a blood assay.
+          </p>
           <Ascii rows={serumRows} />
         </div>
 

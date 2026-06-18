@@ -1,8 +1,10 @@
 import { getDb } from './index';
 import { getCatalog } from './mutations';
 import { getStravaApp } from '../ingest/secrets';
+import { lookup } from '../pharma/compounds';
+import { protocolSerum, discreteSerum } from '../pharma/serum';
 import type {
-  Snapshot, Insight, NodeGroup, SyncMeta, ConnectionState, SourceId, SourceStatus,
+  Snapshot, Insight, NodeGroup, SyncMeta, ConnectionState, SourceId, SourceStatus, SerumCompound,
 } from '../../lib/types';
 
 const stravaConfigured = () =>
@@ -156,9 +158,11 @@ export function getSnapshot(): Snapshot {
       flagged: r.value < r.lo || r.value > r.hi,
     }));
 
-  // estimated serum — Test Cyp, summed exponential decay over the last 7 days
-  const testCyp = compounds.find((c) => /test/i.test(c.name)) ?? compounds[0];
-  const serum7d = estimateSerum7d(testCyp?.id, (testCyp?.hl ?? 192) / 24);
+  // estimated serum per active compound (half-life model) — drives the visual
+  const serumByCompound = buildSerumByCompound();
+  // back-compat 7d series for the ASCII bars: the testosterone stream (or first)
+  const primarySerum = serumByCompound.find((s) => /test/i.test(s.klass)) ?? serumByCompound[0];
+  const serum7d = primarySerum ? primarySerum.series.slice(-7) : [];
 
   // nutrition
   const latestDay = (db.prepare('SELECT MAX(logged_on) AS d FROM nutrition_logs').get() as { d: string }).d;
@@ -207,7 +211,7 @@ export function getSnapshot(): Snapshot {
 
   return {
     insights, recentSets, prLog, tonnage, cardioGoal, cardioProgression, recentRuns, cardioBySport,
-    protocols, administrations, titration, labResults, serum7d,
+    protocols, administrations, titration, labResults, serum7d, serumByCompound,
     dailyTotals, calories7d, vitamins, minerals, weightGoal,
     session: { id: 'SB-00', clock: '03:14:09' },
     syncMeta: getSyncMeta(),
@@ -217,68 +221,70 @@ export function getSnapshot(): Snapshot {
 }
 
 /**
- * Estimate serum from the continuous protocol: reconstruct the daily dose for
- * each day (protocol start dose, stepped by each titration), then sum the
- * exponential decay of every day's dose. Falls back to legacy administrations
- * if no protocol exists yet.
+ * Estimate serum for every active compound over a 14-day window. Each active
+ * protocol is reconstructed into a standing-dose timeline (start dose stepped
+ * by each titration), then the half-life PK model integrates it. A compound
+ * with administrations but no protocol falls back to the discrete-dose model.
+ * Half-life and the stream's colour/character come from the built-in library
+ * (the DB's half_life_hours wins when it's set).
  */
-function estimateSerum7d(compoundId: number | undefined, halfLifeDays: number) {
+function buildSerumByCompound(): SerumCompound[] {
   const db = getDb();
-  if (!compoundId) return [];
-
-  const proto = db.prepare(
-    'SELECT daily_dose_mg AS dose, started_at AS since FROM protocols WHERE compound_id = ? AND active = 1 ORDER BY started_at LIMIT 1',
-  ).get(compoundId) as { dose: number; since: string } | undefined;
-
   const dayMsOf = (s: string) => new Date(s.slice(0, 10) + 'T00:00:00').getTime();
-  let timeline: { t: number; dose: number }[] = [];
 
-  if (proto) {
+  const active = db.prepare(`
+    SELECT p.compound_id AS cid, c.name AS name, c.half_life_hours AS hl,
+           p.daily_dose_mg AS dose, p.started_at AS since
+    FROM protocols p JOIN compounds c ON c.id = p.compound_id
+    WHERE p.active = 1 ORDER BY c.id
+  `).all() as { cid: number; name: string; hl: number | null; dose: number; since: string }[];
+
+  const out: SerumCompound[] = [];
+
+  for (const p of active) {
+    const info = lookup(p.name);
+    const halfLifeDays = p.hl && p.hl > 0 ? p.hl / 24 : info.halfLifeDays;
+
     const tits = db.prepare(
       'SELECT changed_at AS at, dose_before_mg AS before, dose_after_mg AS after FROM titration_log WHERE compound_id = ? ORDER BY changed_at',
-    ).all(compoundId) as { at: string; before: number; after: number }[];
-    const initial = tits.length ? (tits[0].before ?? proto.dose) : proto.dose;
-    timeline.push({ t: dayMsOf(proto.since), dose: initial });
-    for (const tt of tits) timeline.push({ t: dayMsOf(tt.at), dose: tt.after });
-  } else {
+    ).all(p.cid) as { at: string; before: number; after: number }[];
+
+    const initial = tits.length ? (tits[0].before ?? p.dose) : p.dose;
+    const steps = [{ t: dayMsOf(p.since), dose: initial }, ...tits.map((t) => ({ t: dayMsOf(t.at), dose: t.after }))];
+    const series = protocolSerum(steps, halfLifeDays, { windowDays: 14 });
+    if (series.length === 0) continue;
+
+    out.push({
+      key: info.key, label: info.shortLabel, klass: info.klass, color: info.color,
+      character: info.character, halfLifeDays: Math.round(halfLifeDays * 10) / 10,
+      current: series[series.length - 1].mg, peak: series.reduce((m, s) => Math.max(m, s.mg), 0), series,
+    });
+  }
+
+  // Compounds dosed only via the discrete administrations log (no protocol).
+  const loose = db.prepare(`
+    SELECT a.compound_id AS cid, c.name AS name, c.half_life_hours AS hl
+    FROM administrations a JOIN compounds c ON c.id = a.compound_id
+    WHERE a.compound_id NOT IN (SELECT compound_id FROM protocols WHERE active = 1)
+    GROUP BY a.compound_id
+  `).all() as { cid: number; name: string; hl: number | null }[];
+
+  for (const l of loose) {
+    const info = lookup(l.name);
+    const halfLifeDays = l.hl && l.hl > 0 ? l.hl / 24 : info.halfLifeDays;
     const admins = db.prepare(
       'SELECT administered_at AS at, dose_mg AS dose FROM administrations WHERE compound_id = ?',
-    ).all(compoundId) as { at: string; dose: number }[];
-    if (admins.length === 0) return [];
-    // legacy: discrete doses
-    const anchor = admins.reduce((m, a) => Math.max(m, dayMsOf(a.at)), 0);
-    const out: { day: string; mg: number }[] = [];
-    for (let i = 6; i >= 0; i--) {
-      const dayMs = anchor - i * 86400_000;
-      let mg = 0;
-      for (const a of admins) { const e = (dayMs - dayMsOf(a.at)) / 86400_000; if (e >= 0) mg += a.dose * Math.pow(0.5, e / halfLifeDays); }
-      out.push({ day: weekday(new Date(dayMs).toISOString()), mg: Math.round(mg) });
-    }
-    return out;
+    ).all(l.cid) as { at: string; dose: number }[];
+    const series = discreteSerum(admins.map((a) => ({ t: dayMsOf(a.at), dose: a.dose })), halfLifeDays, { windowDays: 14 });
+    if (series.length === 0 || series.every((s) => s.mg === 0)) continue;
+    out.push({
+      key: info.key, label: info.shortLabel, klass: info.klass, color: info.color,
+      character: info.character, halfLifeDays: Math.round(halfLifeDays * 10) / 10,
+      current: series[series.length - 1].mg, peak: series.reduce((m, s) => Math.max(m, s.mg), 0), series,
+    });
   }
 
-  timeline = timeline.sort((a, b) => a.t - b.t);
-  const doseOnDay = (t: number) => {
-    let dose = 0;
-    for (const p of timeline) { if (p.t <= t) dose = p.dose; else break; }
-    return dose;
-  };
-
-  const start = timeline[0].t;
-  const todayMs = dayMsOf(new Date().toISOString());
-  const anchor = Math.max(todayMs, timeline[timeline.length - 1].t);
-
-  const out: { day: string; mg: number }[] = [];
-  for (let i = 6; i >= 0; i--) {
-    const D = anchor - i * 86400_000;
-    let mg = 0;
-    for (let d = start; d <= D; d += 86400_000) {
-      const dose = doseOnDay(d);
-      if (dose > 0) mg += dose * Math.pow(0.5, (D - d) / 86400_000 / halfLifeDays);
-    }
-    out.push({ day: weekday(new Date(D).toISOString()), mg: Math.round(mg) });
-  }
-  return out;
+  return out.sort((a, b) => b.current - a.current);
 }
 
 /* ---- connection / sync metadata ----------------------------------------- */

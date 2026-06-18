@@ -139,6 +139,48 @@ snap = getSnapshot();
 assert.equal(snap.insights.length, openBefore - 1, 'resolved flag disappears (no longer persists)');
 console.log('✓ protocol + titration  (test 14→16, deca 7→10) · flags resolvable · weight goal · sport split');
 
+// --- pharmacokinetics: built-in compound library + half-life serum model ---
+{
+  const { lookup, catalog } = require('../dist-electron/desktop/pharma/compounds.js');
+  assert.equal(lookup('Test E').key, 'test_enan', 'Test E resolves to enanthate');
+  assert.equal(lookup('Testosterone Cypionate').halfLifeDays, 8, 'cyp t½ 8d');
+  assert.equal(lookup('Tren Ace').halfLifeDays, 1, 'tren acetate t½ 1d');
+  assert.equal(lookup('Deca Durabolin').klass, 'Nandrolone', 'deca is nandrolone family');
+  assert.equal(lookup('Masteron E').character, 'confident', 'masteron flows confident');
+  assert.ok(lookup('Tren Ace').character === 'oscillating', 'tren oscillates');
+  assert.ok(catalog().length > 15, 'catalog has the common compounds');
+
+  const { protocolSerum, discreteSerum } = require('../dist-electron/desktop/pharma/serum.js');
+  const anchor = Date.parse('2026-06-18T00:00:00');
+  const day = 86400000;
+  // steady daily dose accumulates toward a plateau and stays positive
+  const steady = protocolSerum([{ t: anchor - 20 * day, dose: 100 }], 4, { windowDays: 14, anchorMs: anchor });
+  assert.equal(steady.length, 14, '14-day window');
+  assert.ok(steady.every((p) => p.mg > 0), 'steady protocol stays positive');
+  assert.ok(steady[13].mg >= steady[0].mg, 'accumulates over the window');
+  // shorter half-life => lower steady-state level for the same daily dose
+  const shortHl = protocolSerum([{ t: anchor - 20 * day, dose: 100 }], 1, { windowDays: 14, anchorMs: anchor });
+  assert.ok(shortHl[13].mg < steady[13].mg, 'shorter half-life => lower accumulation');
+  // a single discrete dose decays by ~half over one half-life
+  const single = discreteSerum([{ t: anchor - 4 * day, dose: 200 }], 4, { windowDays: 8, anchorMs: anchor });
+  const atDose = single.find((p) => p.mg === 200) || single[Math.max(0, single.length - 5)];
+  assert.ok(single[single.length - 1].mg < 200, 'discrete dose decays after injection');
+  console.log('✓ pharma PK engine      (library lookups + half-life accumulation/decay)');
+}
+
+// --- serumByCompound: per-compound streams for the visual ---
+{
+  const s = getSnapshot();
+  assert.ok(s.serumByCompound.length >= 3, 'multiple compound streams');
+  const test = s.serumByCompound.find((c) => /Testosterone/.test(c.klass));
+  assert.ok(test && test.current > 0, 'testosterone stream has a current level');
+  assert.equal(test.halfLifeDays, 8, 'test cyp uses DB half-life (192h = 8d)');
+  assert.ok(s.serumByCompound.every((c) => /^#/.test(c.color) && c.character && c.series.length > 0), 'streams carry colour + character + series');
+  const deca = s.serumByCompound.find((c) => /Nandrolone/.test(c.klass));
+  assert.ok(deca && deca.character === 'saturated', 'deca stream flows saturated');
+  console.log(`✓ serum dynamics        (${s.serumByCompound.length} streams: ${s.serumByCompound.map((c) => c.label).join(', ')})`);
+}
+
 // --- sweep: SB-Σ raises persistent flags, de-duplicated ---
 {
   const openBefore = getSnapshot().insights.length;

@@ -34,6 +34,20 @@ export interface AdminRow {
 export interface TitrationRow { id: number; date: string; compound: string; change: string; trigger: string; }
 export interface LabResult { marker: string; value: string; range: string; flagged: boolean; }
 export interface SerumPoint { day: string; mg: number; }
+
+/** Per-compound estimated serum, for the Serum Dynamics visual. */
+export type SerumCharacter = 'steady' | 'confident' | 'oscillating' | 'saturated';
+export interface SerumCompound {
+  key: string;
+  label: string;          // terse readout label e.g. "TEST E"
+  klass: string;          // family e.g. "Testosterone"
+  color: string;          // hex — stream colour
+  character: SerumCharacter;
+  halfLifeDays: number;
+  current: number;        // estimated mg in system now
+  peak: number;           // max over the window
+  series: SerumPoint[];   // estimated serum over the window
+}
 export interface TotalRow { nutrient: string; today: string; target: string; delta: string; }
 export interface CaloriePoint { day: string; kcal: number; }
 export interface VitaminRow { nutrient: string; amount: string; rda: string; flagged: boolean; }
@@ -54,6 +68,8 @@ export interface Snapshot {
   titration: TitrationRow[];
   labResults: LabResult[];
   serum7d: SerumPoint[];
+  /** estimated serum per active compound (half-life model) — the visual */
+  serumByCompound: SerumCompound[];
   dailyTotals: TotalRow[];
   calories7d: CaloriePoint[];
   vitamins: VitaminRow[];

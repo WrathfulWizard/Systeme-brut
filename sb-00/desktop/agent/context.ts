@@ -22,7 +22,7 @@ export function buildContext(): string {
   L.push('Active protocol: ' + (s.protocols.map((p) => `${p.compound} ${p.dose} ${p.route} (since ${p.since})`).join(', ') || 'none'));
   L.push('Titration history: ' + (s.titration.map((t) => `${t.date} ${t.compound} ${t.change}${t.trigger ? ` — ${t.trigger}` : ''}`).join('; ') || 'none'));
   L.push('Latest labs: ' + (s.labResults.map((l) => `${l.marker} ${l.value} (${l.range})${l.flagged ? ' FLAGGED' : ''}`).join(', ') || 'none'));
-  L.push('Est. serum (testosterone, 7d mg): ' + s.serum7d.map((p) => `${p.day} ${p.mg}`).join(' '));
+  L.push('Est. serum now (half-life model): ' + (s.serumByCompound.map((c) => `${c.label} ${c.current}mg (t½ ${c.halfLifeDays}d)`).join(', ') || 'none'));
 
   L.push('\n## SUBSTRATE — INTAKE + MASS');
   L.push('Today totals: ' + s.dailyTotals.map((t) => `${t.nutrient} ${t.today}/${t.target} (${t.delta})`).join(', '));
