@@ -155,6 +155,26 @@ tr.prrow td:last-child { font-weight: 700; color: var(--text); }
 .serum-legend .sub { color: var(--dim); font-size: 9.5px; }
 .serum-legend .mg { color: var(--text); margin-left: 4px; }
 
+/* ---- per-compound serum detail (tap to chart) --------------------------- */
+.serum-detail { display: flex; flex-direction: column; }
+.srow-detail { border-bottom: 1px solid var(--line-soft); }
+.srow-head { width: 100%; display: flex; align-items: center; gap: 9px; padding: 9px 2px;
+  background: transparent; border: 0; color: var(--text); cursor: pointer; font-family: var(--font-mono); font-size: 12px; }
+.srow-head:hover { background: var(--line-soft); }
+.srow-head .dot { width: 9px; height: 9px; border-radius: 9px; flex: none; box-shadow: 0 0 6px currentColor; }
+.srow-head .lbl { font-weight: 700; letter-spacing: 0.04em; min-width: 76px; text-align: left; }
+.srow-head .sub { color: var(--dim); font-size: 10.5px; flex: 1; text-align: left; }
+.srow-head .mg { color: var(--text); }
+.srow-head .chev { color: var(--dim); width: 14px; text-align: center; }
+.srow-body { padding: 6px 2px 14px; }
+.win-toggle { display: flex; gap: 6px; margin-bottom: 8px; }
+.wbtn { background: transparent; border: 1px solid var(--line); color: var(--dim); padding: 3px 9px;
+  font-family: var(--font-cap); font-size: 10px; letter-spacing: 0.07em; cursor: pointer; }
+.wbtn.on { color: var(--text); border-color: var(--text); }
+.steady-banner { margin-top: 8px; font-family: var(--font-mono); font-size: 10.5px; letter-spacing: 0.03em;
+  color: var(--dim); border-left: 2px solid var(--line); padding-left: 9px; }
+.steady-banner.on { color: #3ad07a; border-left-color: #3ad07a; }
+
 /* ---- feed (SB-Σ) --------------------------------------------------------- */
 .feed-section { margin-bottom: 16px; }
 .feed-section .fhead {

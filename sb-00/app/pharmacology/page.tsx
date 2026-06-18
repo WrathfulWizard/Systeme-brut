@@ -5,17 +5,15 @@ import HubFrame from '@/components/HubFrame';
 import { Feed } from '@/components/Feed';
 import { ProtocolAddForm, TitrateForm, LabPanelLogForm } from '@/components/LogForms';
 import SerumLiquidRender from '@/components/SerumLiquidRender';
-import Ascii from '@/components/Ascii';
-import { asciiBars } from '@/lib/ascii';
+import SerumDetail from '@/components/SerumDetail';
 import { useSb } from '../providers';
 
 export default function Pharmacology() {
   const { snapshot, endProtocol, deleteProtocol, deleteTitration, deleteLabPanel, resolveInsight, isDesktop } = useSb();
-  const { insights, protocols, titration, labResults, labPanelId, serum7d, serumByCompound } = snapshot;
+  const { insights, protocols, titration, labResults, labPanelId, serumByCompound } = snapshot;
   const pharmFlags = insights.filter((i) => i.nodes.includes('pharmacology'));
   const [titrating, setTitrating] = useState<number | null>(null);
 
-  const serumRows = asciiBars(serum7d.map((s) => ({ label: s.day, value: s.mg, display: `${s.mg}mg` })));
   const totalCurrent = serumByCompound.reduce((m, c) => m + c.current, 0);
 
   return (
@@ -64,7 +62,8 @@ export default function Pharmacology() {
           <p className="synced-note">
             Estimated from your log + each compound&apos;s half-life. Relative units for trend &amp; accumulation — not a blood assay.
           </p>
-          <Ascii rows={serumRows} />
+          <p className="eyebrow" style={{ marginTop: 16 }}>Per-compound — tap to chart</p>
+          <SerumDetail compounds={serumByCompound} />
         </div>
 
         <div className="block">
