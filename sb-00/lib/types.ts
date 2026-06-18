@@ -106,6 +106,15 @@ export interface AgentStatus {
   error?: string;
 }
 
+/** Live status of an automatic model pull (emitted while downloading). */
+export interface ModelPullStatus {
+  model: string;
+  status: 'pulling' | 'done' | 'error';
+  pct?: number;       // 0–100 while downloading
+  detail?: string;    // Ollama's status string e.g. "pulling manifest"
+  error?: string;
+}
+
 /** Result of an SB-Σ sweep: how many flags it raised into the Flags feed. */
 export interface SweepResult {
   ran: boolean;        // did the model actually run (false on offline / no model)
@@ -173,4 +182,6 @@ export interface SbBridge {
   onAgentToken(cb: (chunk: string) => void): () => void;
   onAgentDone(cb: (full: string) => void): () => void;
   onAgentError(cb: (message: string) => void): () => void;
+  /** Fires during / after an automatic background model pull on first launch. */
+  onModelPull(cb: (s: ModelPullStatus) => void): () => void;
 }

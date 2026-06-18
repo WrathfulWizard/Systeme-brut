@@ -13,7 +13,7 @@ import {
   addProtocol, titrateProtocol, endProtocol, deleteProtocol, resolveInsight,
 } from './db/mutations';
 import { agentStatus, setAgentModel, agentChat, agentReview, agentSweep, type StreamHandlers } from './agent/ollama';
-import { ensureOllamaRunning } from './agent/launch';
+import { ensureOllamaRunning, pullDefaultIfEmpty } from './agent/launch';
 import type { LiftInput, AdminInput, TitrationInput, LabPanelInput, ProtocolInput, ChatMessage } from '../lib/types';
 import { initSecrets, setCronometer, setStravaApp } from './ingest/secrets';
 import { startIngestion, stopIngestion, syncNow, disconnect, meta } from './ingest/index';
@@ -147,9 +147,16 @@ app.whenReady().then(() => {
   initSecrets(join(app.getPath('userData'), 'secrets.bin'));
   registerIpc();
   startIngestion((m) => win?.webContents.send('sb:syncUpdate', m));
-  // Keep the local model alive without a separate terminal — fire-and-forget so
-  // the window never waits on it. If Ollama isn't installed, SB-Σ just stays offline.
-  void ensureOllamaRunning((m) => console.log('[ollama]', m));
+  // Keep the local model alive without a separate terminal. If Ollama is up but
+  // empty, pull the default small model automatically — all fire-and-forget so
+  // the window never waits on it. Events are forwarded to the renderer.
+  void ensureOllamaRunning((m) => console.log('[ollama]', m)).then((up) => {
+    if (!up) return;
+    void pullDefaultIfEmpty(
+      (s) => win?.webContents.send('sb:modelPull', s),
+      (m) => console.log('[pull]', m),
+    );
+  });
   createWindow();
 
   app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });

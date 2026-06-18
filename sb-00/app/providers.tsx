@@ -4,6 +4,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import type {
   Snapshot, SyncMeta, SourceId, ConnectionState, SbBridge,
   LiftInput, AdminInput, TitrationInput, LabPanelInput, ProtocolInput, AgentStatus, SweepResult,
+  ModelPullStatus,
 } from '@/lib/types';
 import { seedSnapshot } from '@/lib/seed-data';
 
@@ -40,6 +41,7 @@ interface Ctx {
   refreshAgent: () => Promise<void>;
   setAgentModel: (model: string) => Promise<void>;
   sweep: () => Promise<SweepResult>;
+  modelPull: ModelPullStatus | null;
 }
 
 const SbContext = createContext<Ctx | null>(null);
@@ -48,6 +50,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
   const [snapshot, setSnapshot] = useState<Snapshot>(seedSnapshot);
   const [sync, setSync] = useState<SyncMeta>(seedSnapshot.syncMeta);
   const [agent, setAgent] = useState<AgentStatus | null>(null);
+  const [modelPull, setModelPull] = useState<ModelPullStatus | null>(null);
   const isDesktop = typeof window !== 'undefined' && !!window.sb;
 
   const refresh = useCallback(async () => {
@@ -66,8 +69,13 @@ export function Providers({ children }: { children: React.ReactNode }) {
     if (!window.sb) return;
     void refresh();
     void refreshAgent();
-    const off = window.sb.onSyncUpdate((m) => { setSync(m); void refresh(); });
-    return off;
+    const offSync = window.sb.onSyncUpdate((m) => { setSync(m); void refresh(); });
+    const offPull = window.sb.onModelPull((s) => {
+      setModelPull(s);
+      // Once download finishes, refresh agent status so the model shows up.
+      if (s.status === 'done') void refreshAgent();
+    });
+    return () => { offSync(); offPull(); };
   }, [refresh, refreshAgent]);
 
   const value = useMemo<Ctx>(() => ({
@@ -97,7 +105,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
     endProtocol: async (id) => { if (window.sb) { const s = await window.sb.endProtocol(id); setSnapshot(s); setSync(s.syncMeta); } },
     deleteProtocol: async (id) => { if (window.sb) { const s = await window.sb.deleteProtocol(id); setSnapshot(s); setSync(s.syncMeta); } },
     resolveInsight: async (id) => { if (window.sb) { const s = await window.sb.resolveInsight(id); setSnapshot(s); setSync(s.syncMeta); } },
-    agent, refreshAgent,
+    agent, refreshAgent, modelPull,
     setAgentModel: async (model) => { if (window.sb) setAgent(await window.sb.setAgentModel(model)); },
     sweep: async () => {
       if (!window.sb) return { ran: false, created: 0, considered: 0, error: 'desktop only' };
@@ -105,7 +113,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
       await refresh();   // new flags land in the feed
       return r;
     },
-  }), [snapshot, sync, isDesktop, refresh, agent, refreshAgent]);
+  }), [snapshot, sync, isDesktop, refresh, agent, refreshAgent, modelPull]);
 
   return <SbContext.Provider value={value}>{children}</SbContext.Provider>;
 }

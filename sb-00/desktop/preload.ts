@@ -1,7 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron';
 import type {
   SbBridge, SyncMeta, SourceId, LiftInput, AdminInput, TitrationInput, LabPanelInput,
-  ProtocolInput, ChatMessage,
+  ProtocolInput, ChatMessage, ModelPullStatus,
 } from '../lib/types';
 
 /**
@@ -56,6 +56,11 @@ const bridge: SbBridge = {
     const l = (_e: unknown, m: string) => cb(m);
     ipcRenderer.on('sb:agentError', l);
     return () => ipcRenderer.removeListener('sb:agentError', l);
+  },
+  onModelPull: (cb: (s: ModelPullStatus) => void) => {
+    const l = (_e: unknown, s: ModelPullStatus) => cb(s);
+    ipcRenderer.on('sb:modelPull', l);
+    return () => ipcRenderer.removeListener('sb:modelPull', l);
   },
 };
 

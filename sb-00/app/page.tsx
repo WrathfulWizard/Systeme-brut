@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import HubFrame from '@/components/HubFrame';
 import { useSb } from './providers';
-import type { ChatMessage } from '@/lib/types';
+import type { ChatMessage, ModelPullStatus } from '@/lib/types';
 
 const STARTERS = [
   'Review my current state.',
@@ -13,7 +13,7 @@ const STARTERS = [
 ];
 
 export default function Sigma() {
-  const { agent, refreshAgent, isDesktop, sweep } = useSb();
+  const { agent, refreshAgent, isDesktop, sweep, modelPull } = useSb();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [streaming, setStreaming] = useState(false);
@@ -91,7 +91,7 @@ export default function Sigma() {
           </div>
 
           {!ready ? (
-            <AgentSetup isDesktop={isDesktop} reachable={!!agent?.reachable} hasModel={!!agent?.model} onRetry={refreshAgent} />
+            <AgentSetup isDesktop={isDesktop} reachable={!!agent?.reachable} hasModel={!!agent?.model} pull={modelPull} onRetry={refreshAgent} />
           ) : (
             <>
               <div className="chat" ref={chatRef}>
@@ -134,7 +134,10 @@ export default function Sigma() {
   );
 }
 
-function AgentSetup({ isDesktop, reachable, hasModel, onRetry }: { isDesktop: boolean; reachable: boolean; hasModel: boolean; onRetry: () => void }) {
+function AgentSetup({ isDesktop, reachable, hasModel, pull, onRetry }: {
+  isDesktop: boolean; reachable: boolean; hasModel: boolean;
+  pull: ModelPullStatus | null; onRetry: () => void;
+}) {
   return (
     <div className="agent-setup">
       {!isDesktop ? (
@@ -143,15 +146,42 @@ function AgentSetup({ isDesktop, reachable, hasModel, onRetry }: { isDesktop: bo
         <>
           <b>SB-Σ needs Ollama running locally.</b> Your data never leaves this machine.<br /><br />
           1. Install Ollama from <b>ollama.com</b>.<br />
-          2. Pull a model: <code>ollama pull llama3.1</code> (or <code>qwen2.5</code>, <code>mistral</code>).<br />
+          2. The app will automatically download a model for you on first launch.<br />
           3. Make sure Ollama is running, then <button className="btn" onClick={onRetry}>Re-check</button>
         </>
       ) : !hasModel ? (
-        <>
-          Ollama is running, but <b>no model is installed</b>. Pull one: <code>ollama pull llama3.1</code>, then{' '}
-          <button className="btn" onClick={onRetry}>Re-check</button>. Pick the model on the <b>Connections</b> screen.
-        </>
+        pull && pull.status === 'pulling' ? (
+          <PullProgress pull={pull} />
+        ) : pull?.status === 'error' ? (
+          <>
+            <b>Model download failed:</b> {pull.error}<br /><br />
+            You can pull one manually: <code>ollama pull llama3.2:3b</code>, then{' '}
+            <button className="btn" onClick={onRetry}>Re-check</button>
+          </>
+        ) : (
+          <>
+            Ollama is running — <b>downloading model automatically…</b><br />
+            <button className="btn" style={{ marginTop: '0.75rem' }} onClick={onRetry}>Re-check</button>
+          </>
+        )
       ) : null}
+    </div>
+  );
+}
+
+function PullProgress({ pull }: { pull: ModelPullStatus }) {
+  return (
+    <div className="pull-progress">
+      <div className="pull-label">
+        Downloading <b>{pull.model}</b>
+        {pull.pct != null ? ` — ${pull.pct}%` : ''}
+      </div>
+      {pull.pct != null && (
+        <div className="pull-bar-track">
+          <div className="pull-bar-fill" style={{ width: `${pull.pct}%` }} />
+        </div>
+      )}
+      <div className="pull-detail">{pull.detail ?? 'connecting…'}</div>
     </div>
   );
 }
