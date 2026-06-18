@@ -139,12 +139,43 @@ snap = getSnapshot();
 assert.equal(snap.insights.length, openBefore - 1, 'resolved flag disappears (no longer persists)');
 console.log('✓ protocol + titration  (test 14→16, deca 7→10) · flags resolvable · weight goal · sport split');
 
-// --- agent (ollama) reachability: offline is handled gracefully ---
+// --- sweep: SB-Σ raises persistent flags, de-duplicated ---
+{
+  const openBefore = getSnapshot().insights.length;
+  const wrote = mut.addAgentFlags([
+    { key: 'tren-dose-unjustified', severity: 'flag', nodes: ['pharmacology'], body: 'Tren bumped while strength still climbing on the prior dose.' },
+    { key: 'sodium-high', severity: 'info', nodes: ['nutrition'], body: 'Sodium 4100mg trending high three days running.' },
+  ]);
+  assert.equal(wrote, 2, 'sweep wrote 2 new flags');
+  let s2 = getSnapshot();
+  assert.equal(s2.insights.length, openBefore + 2, 'both flags appear in the feed');
+  const trenFlag = s2.insights.find((i) => /Tren bumped/.test(i.body));
+  assert.ok(trenFlag && trenFlag.nodes.includes('pharmacology'), 'flag tagged to pharmacology node');
+
+  // same key again → de-duplicated (no re-raise)
+  const wrote2 = mut.addAgentFlags([
+    { key: 'tren-dose-unjustified', severity: 'flag', nodes: ['pharmacology'], body: 'Reworded but same issue.' },
+  ]);
+  assert.equal(wrote2, 0, 'open flag with same key is not re-raised');
+
+  // clear it, then sweep again → still suppressed (recently resolved)
+  mut.resolveInsight(trenFlag.id);
+  const wrote3 = mut.addAgentFlags([
+    { key: 'tren-dose-unjustified', severity: 'flag', nodes: ['pharmacology'], body: 'Still the same issue.' },
+  ]);
+  assert.equal(wrote3, 0, 'recently-cleared flag is not immediately re-raised');
+  console.log('✓ sb-Σ sweep flags      (2 raised, tagged · re-raise + recently-cleared both de-duped)');
+}
+
+// --- agent (ollama) reachability + sweep: offline is handled gracefully ---
 (async () => {
   const ollama = require('../dist-electron/desktop/agent/ollama.js');
   const st = await ollama.agentStatus();
   assert.equal(st.provider, 'ollama', 'agent provider is ollama');
   assert.equal(typeof st.reachable, 'boolean', 'agent reports reachability');
+  const sweep = await ollama.agentSweep();
+  assert.equal(typeof sweep.ran, 'boolean', 'sweep returns a result even offline');
+  assert.ok(sweep.ran === true || typeof sweep.error === 'string', 'offline sweep carries an error message');
   console.log(`✓ sb-Σ agent status      (ollama ${st.reachable ? 'reachable' : 'offline — handled'})`);
   console.log('\nALL SMOKE CHECKS PASSED');
 })();

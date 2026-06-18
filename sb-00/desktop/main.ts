@@ -12,7 +12,7 @@ import {
   addTitration, deleteTitration, addLabPanel, deleteLabPanel,
   addProtocol, titrateProtocol, endProtocol, deleteProtocol, resolveInsight,
 } from './db/mutations';
-import { agentStatus, setAgentModel, agentChat, agentReview, type StreamHandlers } from './agent/ollama';
+import { agentStatus, setAgentModel, agentChat, agentReview, agentSweep, type StreamHandlers } from './agent/ollama';
 import type { LiftInput, AdminInput, TitrationInput, LabPanelInput, ProtocolInput, ChatMessage } from '../lib/types';
 import { initSecrets, setCronometer, setStravaApp } from './ingest/secrets';
 import { startIngestion, stopIngestion, syncNow, disconnect, meta } from './ingest/index';
@@ -124,6 +124,7 @@ function registerIpc() {
   });
   ipcMain.handle('sb:agentChat', (_e, messages: ChatMessage[]) => { void agentChat(messages, streamHandlers()); });
   ipcMain.handle('sb:agentReview', () => { void agentReview(streamHandlers()); });
+  ipcMain.handle('sb:agentSweep', () => agentSweep());
 }
 
 async function createWindow() {

@@ -1,6 +1,6 @@
 {
   "name": "sb-00",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "description": "Systeme Brut — SB-00 master hub, standalone desktop program.",
   "author": "Systeme Brut",
@@ -59,6 +59,14 @@
       "target": [
         "nsis"
       ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Systeme Brut SB-00"
     },
     "linux": {
       "target": [

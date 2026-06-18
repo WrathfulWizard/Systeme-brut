@@ -90,6 +90,14 @@ export interface AgentStatus {
   error?: string;
 }
 
+/** Result of an SB-Σ sweep: how many flags it raised into the Flags feed. */
+export interface SweepResult {
+  ran: boolean;        // did the model actually run (false on offline / no model)
+  created: number;     // new flags written (after de-dup)
+  considered: number;  // flags the model proposed this pass
+  error?: string;
+}
+
 /* ---- connections / sync (the desktop-only surface) ---------------------- */
 
 export type SourceId = 'strava' | 'cronometer' | 'apple_health';
@@ -145,6 +153,7 @@ export interface SbBridge {
   setAgentModel(model: string): Promise<AgentStatus>;
   agentChat(messages: ChatMessage[]): Promise<void>;          // streams via events
   agentReview(): Promise<void>;                               // proactive once-over, streams
+  agentSweep(): Promise<SweepResult>;                         // raises persistent flags
   onAgentToken(cb: (chunk: string) => void): () => void;
   onAgentDone(cb: (full: string) => void): () => void;
   onAgentError(cb: (message: string) => void): () => void;

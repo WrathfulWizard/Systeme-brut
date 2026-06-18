@@ -1,6 +1,6 @@
-import { getSetting, setSetting } from '../db/mutations';
+import { getSetting, setSetting, addAgentFlags, type AgentFlag } from '../db/mutations';
 import { buildContext, SYSTEM_PROMPT } from './context';
-import type { AgentStatus, ChatMessage } from '../../lib/types';
+import type { AgentStatus, ChatMessage, SweepResult } from '../../lib/types';
 
 /**
  * SB-Σ runs on a LOCAL model via Ollama — nothing leaves the machine. The
@@ -98,6 +98,74 @@ export async function agentChat(messages: ChatMessage[], h: StreamHandlers): Pro
     h.onDone(full);
   } catch (e) {
     h.onError((e as Error).message);
+  }
+}
+
+/* ---- Sweep: SB-Σ raises persistent flags ---------------------------------
+ * Unlike Review (which streams prose into the chat), Sweep asks the model for
+ * a STRUCTURED verdict and writes the results into the Flags feed, where they
+ * persist until you clear them. Selective by design — it should say nothing
+ * when nothing is wrong. */
+
+const SWEEP_PROMPT = `${SYSTEM_PROMPT}
+
+SWEEP MODE — you are auditing the hub to raise FLAGS, not to chat.
+Surface only what genuinely warrants attention right now: a stall, an unjustified dose change, a lab value out of range, a dietary gap, an ignored trend. Be selective — 0 to 4 flags, most important only. Do NOT flag things that are fine, and do NOT restate flags already listed under OPEN FLAGS.
+
+Respond with ONLY a JSON object, no prose, no markdown:
+{"flags":[{"key":"<short-stable-slug>","severity":"flag"|"info","nodes":["pharmacology"|"training"|"cardio"|"nutrition"],"body":"<one sharp sentence, specific to the operator's numbers>"}]}
+"key" must be a stable slug for the issue (e.g. "tren-dose-unjustified") so the same flag isn't raised twice. If nothing warrants a flag, return {"flags":[]}.`;
+
+/** Coerce a model's reply into AgentFlag[], tolerating fences / arrays / stray prose. */
+function parseFlags(raw: string): AgentFlag[] {
+  let txt = (raw ?? '').trim();
+  const fence = txt.match(/```(?:json)?\s*([\s\S]*?)```/);
+  if (fence) txt = fence[1].trim();
+  let data: unknown;
+  try { data = JSON.parse(txt); }
+  catch {
+    const m = txt.match(/[[{][\s\S]*[\]}]/);
+    if (!m) return [];
+    try { data = JSON.parse(m[0]); } catch { return []; }
+  }
+  const arr = Array.isArray(data) ? data
+    : Array.isArray((data as { flags?: unknown }).flags) ? (data as { flags: unknown[] }).flags
+    : [];
+  return (arr as Record<string, unknown>[])
+    .filter((f) => f && typeof f.body === 'string' && (f.body as string).trim())
+    .map((f) => ({
+      severity: f.severity === 'info' ? 'info' : 'flag',
+      body: String(f.body).trim(),
+      nodes: Array.isArray(f.nodes) ? (f.nodes as unknown[]).map(String) : [],
+      key: typeof f.key === 'string' && f.key.trim() ? f.key.trim() : String(f.body).trim(),
+    }));
+}
+
+export async function agentSweep(): Promise<SweepResult> {
+  const { url, model } = cfg();
+  if (!model) return { ran: false, created: 0, considered: 0, error: 'No local model selected. Pull one with `ollama pull llama3.1` and pick it on Connections.' };
+  try {
+    const res = await fetch(`${url}/api/chat`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        model, stream: false, format: 'json', options: { temperature: 0.2 },
+        messages: [
+          { role: 'system', content: SWEEP_PROMPT },
+          { role: 'user', content: `HUB STATE:\n${buildContext()}\n\nReturn the JSON object of flags now.` },
+        ],
+      }),
+    });
+    if (!res.ok) {
+      const detail = await res.text().catch(() => '');
+      const parsed = detail && (() => { try { return JSON.parse(detail).error as string; } catch { return ''; } })();
+      return { ran: false, created: 0, considered: 0, error: `Ollama sweep failed (${res.status})${parsed || detail ? ` — ${parsed || detail.slice(0, 200)}` : ''}` };
+    }
+    const j = (await res.json()) as { message?: { content?: string } };
+    const flags = parseFlags(j.message?.content ?? '');
+    const created = addAgentFlags(flags);
+    return { ran: true, created, considered: flags.length };
+  } catch (e) {
+    return { ran: false, created: 0, considered: 0, error: (e as Error).message };
   }
 }
 

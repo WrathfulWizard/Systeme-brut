@@ -3,7 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import type {
   Snapshot, SyncMeta, SourceId, ConnectionState, SbBridge,
-  LiftInput, AdminInput, TitrationInput, LabPanelInput, ProtocolInput, AgentStatus,
+  LiftInput, AdminInput, TitrationInput, LabPanelInput, ProtocolInput, AgentStatus, SweepResult,
 } from '@/lib/types';
 import { seedSnapshot } from '@/lib/seed-data';
 
@@ -39,6 +39,7 @@ interface Ctx {
   agent: AgentStatus | null;
   refreshAgent: () => Promise<void>;
   setAgentModel: (model: string) => Promise<void>;
+  sweep: () => Promise<SweepResult>;
 }
 
 const SbContext = createContext<Ctx | null>(null);
@@ -98,6 +99,12 @@ export function Providers({ children }: { children: React.ReactNode }) {
     resolveInsight: async (id) => { if (window.sb) { const s = await window.sb.resolveInsight(id); setSnapshot(s); setSync(s.syncMeta); } },
     agent, refreshAgent,
     setAgentModel: async (model) => { if (window.sb) setAgent(await window.sb.setAgentModel(model)); },
+    sweep: async () => {
+      if (!window.sb) return { ran: false, created: 0, considered: 0, error: 'desktop only' };
+      const r = await window.sb.agentSweep();
+      await refresh();   // new flags land in the feed
+      return r;
+    },
   }), [snapshot, sync, isDesktop, refresh, agent, refreshAgent]);
 
   return <SbContext.Provider value={value}>{children}</SbContext.Provider>;

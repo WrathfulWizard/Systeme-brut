@@ -41,6 +41,7 @@ const bridge: SbBridge = {
   setAgentModel: (model: string) => ipcRenderer.invoke('sb:setAgentModel', model),
   agentChat: (messages: ChatMessage[]) => ipcRenderer.invoke('sb:agentChat', messages),
   agentReview: () => ipcRenderer.invoke('sb:agentReview'),
+  agentSweep: () => ipcRenderer.invoke('sb:agentSweep'),
   onAgentToken: (cb: (chunk: string) => void) => {
     const l = (_e: unknown, chunk: string) => cb(chunk);
     ipcRenderer.on('sb:agentToken', l);

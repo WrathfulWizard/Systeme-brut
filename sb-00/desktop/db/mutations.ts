@@ -158,6 +158,50 @@ export function addInsight(severity: 'info' | 'flag', body: string, nodeRefs: st
   ).run(nowIso(), severity, body, JSON.stringify(nodeRefs));
 }
 
+/** A flag SB-Σ proposes during a sweep. `key` is a stable slug for de-dup. */
+export interface AgentFlag {
+  severity: 'info' | 'flag';
+  body: string;
+  nodes: string[];   // node names the model named: training/cardio/pharmacology/nutrition
+  key: string;
+}
+
+// Map the node a flag names → a representative table ref, so the existing
+// nodesOf() pipeline tags the flag with the right node on the Flags screen.
+const NODE_REF: Record<string, string> = {
+  training: 'sets:0', lifting: 'sets:0', lift: 'sets:0', cardio: 'cardio_sessions:0',
+  pharmacology: 'administrations:0', pharma: 'administrations:0', ped: 'administrations:0',
+  nutrition: 'nutrition_logs:0', substrate: 'nutrition_logs:0', diet: 'nutrition_logs:0',
+};
+
+/**
+ * Persist the flags SB-Σ raised during a sweep. De-duplicated by `dedup_key`:
+ * a flag is skipped if one with the same key is still open, OR was resolved in
+ * the last 14 days — so the agent never re-raises something you just cleared.
+ * Returns how many new flags were actually written.
+ */
+export function addAgentFlags(flags: AgentFlag[]): number {
+  const db = getDb();
+  const recentCutoff = new Date(Date.now() - 14 * 86_400_000).toISOString();
+  const exists = db.prepare(
+    'SELECT 1 FROM insights WHERE dedup_key = ? AND (resolved_at IS NULL OR resolved_at > ?) LIMIT 1',
+  );
+  const ins = db.prepare(
+    'INSERT INTO insights (created_at, severity, body, node_refs, dedup_key) VALUES (?,?,?,?,?)',
+  );
+  let written = 0;
+  for (const f of flags) {
+    const body = (f.body ?? '').trim();
+    if (!body) continue;
+    const key = ((f.key && f.key.trim()) || body).toLowerCase().slice(0, 120);
+    if (exists.get(key, recentCutoff)) continue;
+    const refs = [...new Set((f.nodes ?? []).map((n) => NODE_REF[n.toLowerCase().trim()]).filter(Boolean))];
+    ins.run(nowIso(), f.severity === 'info' ? 'info' : 'flag', body, JSON.stringify(refs), key);
+    written++;
+  }
+  return written;
+}
+
 /* ---- settings ----------------------------------------------------------- */
 
 export function getSetting(key: string): string | undefined {

@@ -39,6 +39,12 @@ function migrate(db: Database.Database) {
     db.exec("ALTER TABLE cardio_sessions ADD COLUMN sport TEXT NOT NULL DEFAULT 'run'");
   }
 
+  // insights.dedup_key (SB-Σ sweep: stable slug so a flag isn't re-raised).
+  const icols = db.prepare('PRAGMA table_info(insights)').all() as { name: string }[];
+  if (!icols.some((c) => c.name === 'dedup_key')) {
+    db.exec('ALTER TABLE insights ADD COLUMN dedup_key TEXT');
+  }
+
   // Backfill a continuous protocol from each compound's latest dose.
   const protoCount = (db.prepare('SELECT COUNT(*) AS n FROM protocols').get() as { n: number }).n;
   if (protoCount === 0) {

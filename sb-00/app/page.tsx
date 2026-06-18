@@ -13,10 +13,12 @@ const STARTERS = [
 ];
 
 export default function Sigma() {
-  const { agent, refreshAgent, isDesktop } = useSb();
+  const { agent, refreshAgent, isDesktop, sweep } = useSb();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [streaming, setStreaming] = useState(false);
+  const [sweeping, setSweeping] = useState(false);
+  const [sweepNote, setSweepNote] = useState('');
   const chatRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -58,6 +60,20 @@ export default function Sigma() {
     setMessages((m) => [...m, { role: 'assistant', content: '' }]);
     setStreaming(true);
     await window.sb.agentReview();
+  };
+
+  const sweepNow = async () => {
+    if (!ready || sweeping || streaming) return;
+    setSweeping(true);
+    setSweepNote('SB-Σ is sweeping every node…');
+    const r = await sweep();
+    setSweeping(false);
+    setSweepNote(
+      r.error ? `⚠ ${r.error}`
+        : r.created > 0 ? `Raised ${r.created} flag${r.created === 1 ? '' : 's'} → see the Flags screen.`
+        : r.ran ? 'Swept — nothing new to flag. You\'re clear.'
+        : '⚠ Sweep did not run.',
+    );
   };
 
   return (
@@ -103,9 +119,13 @@ export default function Sigma() {
                 />
                 <div className="btnrow-inline" style={{ flexDirection: 'column' }}>
                   <button className="btn primary" disabled={streaming || !input.trim()} onClick={() => send(input)}>Send</button>
-                  <button className="btn" disabled={streaming} onClick={review}>Review</button>
+                  <button className="btn" disabled={streaming || sweeping} onClick={review}>Review</button>
+                  <button className="btn" disabled={streaming || sweeping} onClick={sweepNow} title="SB-Σ audits every node and raises persistent flags">
+                    {sweeping ? 'Sweeping…' : 'Sweep'}
+                  </button>
                 </div>
               </div>
+              {sweepNote && <div className="sweep-note">{sweepNote}</div>}
             </>
           )}
         </div>

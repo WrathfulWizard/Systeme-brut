@@ -148,6 +148,7 @@ CREATE TABLE IF NOT EXISTS insights (
   severity TEXT NOT NULL DEFAULT 'info',
   body TEXT NOT NULL,
   node_refs TEXT NOT NULL DEFAULT '[]',   -- JSON array of "table:id"
+  dedup_key TEXT,                         -- stable slug for SB-Σ-raised flags; NULL for hand-seeded
   resolved_at TEXT
 );
 
