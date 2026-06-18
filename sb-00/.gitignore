@@ -17,6 +17,16 @@
 /.next/
 /out/
 
+# electron (compiled backend + packaged installers)
+/dist-electron/
+/release/
+
+# local data / secrets (never commit)
+*.db
+*.db-wal
+*.db-shm
+secrets.bin
+
 # production
 /build
 

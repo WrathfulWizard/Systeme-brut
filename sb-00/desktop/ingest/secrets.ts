@@ -1,0 +1,64 @@
+import { safeStorage } from 'electron';
+import { readFileSync, writeFileSync, existsSync } from 'node:fs';
+
+/**
+ * Connection secrets — OAuth tokens and the (user-opted-in) Cronometer login.
+ *
+ * Stored encrypted at rest via Electron's safeStorage, which uses the OS
+ * keychain (Keychain on macOS, libsecret on Linux, DPAPI on Windows). The
+ * plaintext only exists in memory while a sync runs. Nothing here is ever
+ * written to SQLite or committed to disk in the clear.
+ */
+
+export interface StravaSecret {
+  accessToken: string;
+  refreshToken: string;
+  expiresAt: number;        // epoch seconds
+  athlete?: string;
+}
+export interface CronometerSecret {
+  username: string;
+  password: string;         // required by the unofficial export client (no API)
+}
+
+interface Vault {
+  strava?: StravaSecret;
+  cronometer?: CronometerSecret;
+}
+
+let secretsPath = '';
+let cache: Vault | null = null;
+
+export function initSecrets(path: string) {
+  secretsPath = path;
+}
+
+function load(): Vault {
+  if (cache) return cache;
+  if (!existsSync(secretsPath)) { cache = {}; return cache; }
+  try {
+    const enc = readFileSync(secretsPath);
+    const json = safeStorage.isEncryptionAvailable()
+      ? safeStorage.decryptString(enc)
+      : enc.toString('utf8'); // dev fallback if no OS keychain
+    cache = JSON.parse(json) as Vault;
+  } catch {
+    cache = {};
+  }
+  return cache;
+}
+
+function persist(v: Vault) {
+  cache = v;
+  const json = JSON.stringify(v);
+  const buf = safeStorage.isEncryptionAvailable()
+    ? safeStorage.encryptString(json)
+    : Buffer.from(json, 'utf8');
+  writeFileSync(secretsPath, buf, { mode: 0o600 });
+}
+
+export function getStrava() { return load().strava; }
+export function setStrava(s: StravaSecret | undefined) { const v = load(); v.strava = s; persist(v); }
+
+export function getCronometer() { return load().cronometer; }
+export function setCronometer(c: CronometerSecret | undefined) { const v = load(); v.cronometer = c; persist(v); }

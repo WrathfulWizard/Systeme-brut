@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { Inter, Archivo_Narrow, Roboto_Mono } from 'next/font/google';
 import './globals.css';
+import { Providers } from './providers';
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter' });
 const archivo = Archivo_Narrow({ subsets: ['latin'], weight: ['500', '600', '700'], variable: '--font-archivo' });
@@ -14,7 +15,7 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en" className={`${inter.variable} ${archivo.variable} ${robotoMono.variable}`}>
-      <body>{children}</body>
+      <body><Providers>{children}</Providers></body>
     </html>
   );
 }

@@ -1,25 +1,103 @@
-# SB-00 — Master Hub
+# SB-00 — Master Hub (standalone desktop program)
 
-The dense web viewer for Systeme Brut. Next.js 16 (App Router) + Supabase.
-See the repo root `README.md` and `docs/HANDOFF.md` for the full picture.
+The dense viewer for Systeme Brut, packaged as a **standalone Electron desktop
+app** with automatic ingestion from **Strava**, **Cronometer**, and **Apple
+Health**. The Next.js UI is static-exported and runs inside Electron; all live
+data comes from the Electron backend over IPC — there is no dev server or
+browser required at runtime.
+
+```
+┌──────────────────────── Electron app ────────────────────────┐
+│  main process (Node)                                          │
+│   • SQLite store (better-sqlite3)   • OS-encrypted secrets    │
+│   • ingestion services + scheduler  • local HTTP receiver     │
+│            │ IPC (window.sb)                                   │
+│  renderer (static-exported Next.js UI) ── reads snapshots     │
+└──────────────────────────────────────────────────────────────┘
+        ▲ Strava API      ▲ Cronometer export    ▲ phone bridge → receiver
+```
+
+## Run it
 
 ```bash
 npm install
-npm run dev     # http://localhost:3000
-npm run build   # verify before committing
+npm run rebuild:native        # compile better-sqlite3 for Electron's ABI (once)
+
+npm run desktop               # build UI + backend, launch the app
+# or, live-reload the UI while developing:
+npm run desktop:dev           # next dev + Electron pointed at it
 ```
+
+Package installers (dmg / nsis / AppImage) for distribution:
+
+```bash
+npm run dist                  # → release/
+```
+
+The app also still builds as a plain static web bundle (`npm run build` → `out/`),
+where it renders the seed data with connections disabled.
+
+## Data sources — how each one actually pulls
+
+Open the **Connections** screen in the app to link them.
+
+| Source           | Mechanism                                                                 |
+| ---------------- | ------------------------------------------------------------------------- |
+| **Strava**       | Real API. OAuth2 (loopback redirect), then runs are polled every 15 min.  |
+| **Apple Health** | Push only — no cloud API. A phone bridge POSTs to the local receiver.     |
+| **Cronometer**   | Unofficial. Logs in with stored credentials and pulls the daily export.   |
+
+### Strava
+Create a personal API application at <https://www.strava.com/settings/api> and
+set the credentials before launching:
+
+```bash
+export STRAVA_CLIENT_ID=xxxxx
+export STRAVA_CLIENT_SECRET=xxxxxxxxxxxxxxxx
+```
+
+Set the app's **Authorization Callback Domain** to `127.0.0.1`. Then click
+*Connect Strava* — the system browser opens, you authorize, and activities flow
+into Cardio. Tokens are refreshed automatically and stored OS-encrypted.
+
+### Apple Health
+Apple exposes no server API; HealthKit data lives on the phone. Install the
+**Health Auto Export** app (or build a Shortcut) and point its REST export at
+the endpoint shown on the Connections screen:
+
+```
+POST http://<this-machine-ip>:8787/ingest/health
+```
+
+Set it to run on a schedule (e.g. hourly). Optionally set `HEALTH_INGEST_TOKEN`
+and add it as a `Bearer` header to gate the endpoint. Cronometer's macros ride
+this same pipeline (Cronometer → Apple Health → receiver, tagged
+`cronometer_via_apple_health`).
+
+### Cronometer (unofficial — credentials stored)
+> ⚠️ Cronometer has **no public API**. This path logs in with your username and
+> password (held **OS-encrypted** via Electron `safeStorage`, never written in
+> the clear or committed) and scrapes the same daily CSV export the web app
+> generates. It is against Cronometer's ToS and can break if their login flow
+> changes. The non-credential alternative is the Apple Health pipeline above.
+
+Enter your login on the Connections screen and *Link account*; the trailing two
+weeks of daily nutrition + micronutrients are pulled hourly (`cronometer_direct`).
 
 ## Layout
 
-- `app/` — one route per IA screen: `/` (Overview), `/lifts`, `/cardio`,
-  `/pharmacology`, `/nutrition`, `/flags`.
-- `components/` — `HubFrame` (frame + nav + side rail chrome), `Nav`, `Ascii`,
-  `Feed`, and `SerumLiquidRender` (the WebGL serum readout).
-- `lib/data.ts` — static data mirroring `supabase/seed.sql`. Swap for Supabase
-  queries when the backend is live; the shapes already match the v2 schema.
-- `lib/ascii.ts` — builds the real-monospace `█`/`░` bar matrices.
-- `app/globals.css` — the design tokens, translated from the mockup `:root`
-  spec (one flag colour, corner marks, the type pairing).
+- `app/` — one route per IA screen plus `/connections`. Client components that
+  read a single `Snapshot` from the provider (`app/providers.tsx`), which uses
+  `window.sb` IPC in the desktop app and falls back to seed data in a browser.
+- `components/` — `HubFrame`, `Nav`, `Ascii`, `Feed`, `SerumLiquidRender`.
+- `lib/` — `types.ts` (the IPC contract), `seed-data.ts` (first-paint / web
+  fallback), `ascii.ts` (the real-monospace `█`/`░` bars).
+- `desktop/` — the Electron backend (compiled to `dist-electron/`):
+  - `main.ts` / `preload.ts` — shell, window, IPC, Strava OAuth loopback.
+  - `db/` — SQLite schema + seed + the snapshot/connection queries.
+  - `ingest/` — `strava.ts`, `cronometer.ts`, `appleHealth.ts`, `receiver.ts`,
+    `secrets.ts`, and the orchestrator `index.ts`.
+  - `smoke.cjs` — `node desktop/smoke.cjs` exercises DB + both parsers.
 
-> `AGENTS.md` notes Next 16 has breaking changes vs. earlier versions — check
-> `node_modules/next/dist/docs/` before writing Next-specific code.
+> `AGENTS.md` notes Next 16 has breaking changes — check
+> `node_modules/next/dist/docs/` before writing Next code.

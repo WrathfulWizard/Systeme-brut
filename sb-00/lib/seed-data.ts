@@ -1,0 +1,103 @@
+import type { Snapshot } from './types';
+
+/**
+ * The seed snapshot — the mockup numbers, mirroring supabase/seed.sql and the
+ * desktop SQLite seed. Used for first paint (before live IPC data resolves) and
+ * as the fallback when the UI runs in a plain browser with no desktop backend.
+ */
+export const seedSnapshot: Snapshot = {
+  insights: [
+    { id: 1, at: '10:05', severity: 'flag', nodes: ['nutrition', 'pharmacology'],
+      body: "Sodium elevated 4th straight day. Cross-check against this week's BP readings." },
+    { id: 2, at: '09:12', severity: 'flag', nodes: ['pharmacology'],
+      body: 'ALT 24% over range, 9d into an oral. Suggest follow-up.' },
+    { id: 3, at: '08:40', severity: 'flag', nodes: ['pharmacology'],
+      body: 'HDL below range, third panel running.' },
+    { id: 4, at: 'Yday', severity: 'info', nodes: ['training'],
+      body: 'Squat tonnage trending up 3 weeks running.' },
+    { id: 5, at: 'Yday', severity: 'info', nodes: ['nutrition'],
+      body: 'Vitamin D trending down three weeks, consistent with reduced outdoor training.' },
+  ],
+  recentSets: [
+    { date: '06.17', exercise: 'Squat', set: 'RP1', weight: '140kg', reps: '5' },
+    { date: '06.17', exercise: 'Squat', set: 'RP burst', weight: '140kg', reps: '3+2' },
+    { date: '06.15', exercise: 'Bench', set: 'RP1', weight: '100kg', reps: '6' },
+    { date: '06.15', exercise: 'Bench', set: 'RP burst', weight: '100kg', reps: '3+2' },
+  ],
+  prLog: [
+    { exercise: 'Squat', prVolume: 8120, lastBeat: '06.17', status: 'NEW' },
+    { exercise: 'Bench', prVolume: 6240, lastBeat: '06.10', status: '—' },
+    { exercise: 'Row', prVolume: 7480, lastBeat: '06.12', status: '—' },
+    { exercise: 'OHP', prVolume: 4310, lastBeat: '06.05', status: '—' },
+  ],
+  tonnage: [
+    { lift: 'SQUAT', value: 8120 }, { lift: 'BENCH', value: 6240 },
+    { lift: 'ROW', value: 7480 }, { lift: 'OHP', value: 4310 },
+  ],
+  cardioGoal: { metric: 'distance_km', target: 10, longest: 7.2, unit: 'km' },
+  cardioProgression: [
+    { date: '06.06', distance: 5.0 }, { date: '06.10', distance: 5.5 },
+    { date: '06.13', distance: 6.0 }, { date: '06.16', distance: 7.2 },
+  ],
+  recentRuns: [
+    { date: '06.16', distance: '7.2km', pace: '5:42/km', source: 'Strava' },
+    { date: '06.13', distance: '6.0km', pace: '5:55/km', source: 'Strava' },
+    { date: '06.10', distance: '5.5km', pace: '6:01/km', source: 'Strava' },
+    { date: '06.06', distance: '5.0km', pace: '6:10/km', source: 'Strava' },
+  ],
+  regimen: [
+    { compound: 'Testosterone Cyp', dose: '~14mg/day (micro)', route: 'IM' },
+    { compound: 'Anavar', dose: '20mg/day', route: 'Oral' },
+  ],
+  administrations: [
+    { date: '06.17', compound: 'Testosterone Cyp', dose: '14mg', route: 'IM' },
+    { date: '06.17', compound: 'Anavar', dose: '20mg', route: 'Oral' },
+    { date: '06.16', compound: 'Testosterone Cyp', dose: '14mg', route: 'IM' },
+    { date: '06.16', compound: 'Anavar', dose: '20mg', route: 'Oral' },
+  ],
+  titration: [
+    { date: '06.12', compound: 'Testosterone Cyp', change: '11mg → 14mg', trigger: 'Trough low-normal, progressing per plan' },
+    { date: '05.20', compound: 'Anavar', change: '10mg → 20mg', trigger: 'No ALT rise at 4wk check' },
+  ],
+  labResults: [
+    { marker: 'GGT', value: '42 U/L', range: '8–61', flagged: false },
+    { marker: 'ALT', value: '68 U/L', range: '7–55', flagged: true },
+    { marker: 'HDL', value: '31 mg/dL', range: '40–60', flagged: true },
+    { marker: 'Hematocrit', value: '49%', range: '38–50', flagged: false },
+    { marker: 'Cystatin C', value: '0.91 mg/L', range: '0.6–1.0', flagged: false },
+  ],
+  serum7d: [
+    { day: 'MON', mg: 312 }, { day: 'TUE', mg: 286 }, { day: 'WED', mg: 264 },
+    { day: 'THU', mg: 241 }, { day: 'FRI', mg: 219 }, { day: 'SAT', mg: 198 }, { day: 'SUN', mg: 180 },
+  ],
+  dailyTotals: [
+    { nutrient: 'Calories', today: '2840 kcal', target: '2900 kcal', delta: '−60' },
+    { nutrient: 'Protein', today: '215g', target: '200g', delta: '+15' },
+    { nutrient: 'Carbs', today: '310g', target: '320g', delta: '−10' },
+    { nutrient: 'Fat', today: '88g', target: '90g', delta: '−2' },
+    { nutrient: 'Fiber', today: '34g', target: '30g', delta: '+4' },
+  ],
+  calories7d: [
+    { day: 'MON', kcal: 2640 }, { day: 'TUE', kcal: 2510 }, { day: 'WED', kcal: 2980 },
+    { day: 'THU', kcal: 2860 }, { day: 'FRI', kcal: 3020 }, { day: 'SAT', kcal: 2750 }, { day: 'SUN', kcal: 2840 },
+  ],
+  vitamins: [
+    { nutrient: 'Vitamin D', amount: '9.2 µg', rda: '46%', flagged: true },
+    { nutrient: 'Vitamin B12', amount: '6.1 µg', rda: '254%', flagged: false },
+    { nutrient: 'Vitamin C', amount: '64 mg', rda: '71%', flagged: false },
+    { nutrient: 'Folate', amount: '280 µg', rda: '70%', flagged: false },
+  ],
+  minerals: [
+    { mineral: 'Sodium', amount: '3850 mg', target: '<2300 mg', flagged: true },
+    { mineral: 'Potassium', amount: '3100 mg', target: '3400 mg', flagged: false },
+    { mineral: 'Magnesium', amount: '340 mg', target: '400 mg', flagged: false },
+    { mineral: 'Calcium', amount: '980 mg', target: '1000 mg', flagged: false },
+    { mineral: 'Chloride', amount: '2700 mg', target: '2300 mg', flagged: false },
+  ],
+  session: { id: 'SB-00', clock: '03:14:09' },
+  syncMeta: { connections: [
+    { source: 'strava', status: 'disconnected' },
+    { source: 'cronometer', status: 'disconnected' },
+    { source: 'apple_health', status: 'disconnected' },
+  ] },
+};

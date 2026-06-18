@@ -1,19 +1,21 @@
+'use client';
+
 import HubFrame from '@/components/HubFrame';
 import Ascii from '@/components/Ascii';
 import { Feed } from '@/components/Feed';
 import { asciiBars } from '@/lib/ascii';
-import { calories7d, dailyTotals, insights, minerals, openFlags, vitamins } from '@/lib/data';
+import { useSnapshot } from '../providers';
 
 export default function Nutrition() {
-  const calorieRows = asciiBars(
-    calories7d.map((c) => ({ label: c.day, value: c.kcal, display: `${c.kcal}kcal` })),
-  );
+  const { insights, dailyTotals, calories7d, vitamins, minerals } = useSnapshot();
+  const calorieRows = asciiBars(calories7d.map((c) => ({ label: c.day, value: c.kcal, display: `${c.kcal}kcal` })));
   const nutritionFeed = insights.filter((i) => i.nodes.includes('nutrition'));
+  const flagCount = insights.filter((i) => i.severity === 'flag').length;
 
   return (
     <div className="page">
       <HubFrame
-        status={<>SOURCE: CRONOMETER · SYNCED 07:58 · <span className="flag">{openFlags().length} OPEN FLAGS</span></>}
+        status={<>SOURCE: CRONOMETER · SYNCED 07:58 · <span className="flag">{flagCount} OPEN FLAGS</span></>}
         foot={<span className="flag">Last flag — Sodium, today</span>}
         side={<Feed items={nutritionFeed} showTime />}
       >

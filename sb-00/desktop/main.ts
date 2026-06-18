@@ -1,0 +1,112 @@
+import { app, BrowserWindow, ipcMain, shell } from 'electron';
+import { join } from 'node:path';
+import { createServer, type Server } from 'node:http';
+import { readFile } from 'node:fs/promises';
+import { createReadStream, existsSync } from 'node:fs';
+import { extname } from 'node:path';
+
+import { openDb } from './db/index';
+import { getSnapshot } from './db/queries';
+import { initSecrets, setCronometer } from './ingest/secrets';
+import { startIngestion, stopIngestion, syncNow, disconnect, meta } from './ingest/index';
+import { buildAuthUrl, exchangeCode, syncStrava, STRAVA_REDIRECT_PORT } from './ingest/strava';
+import { syncCronometer } from './ingest/cronometer';
+import type { SourceId } from '../lib/types';
+
+const DEV = !!process.env.SB_DEV;
+const DEV_URL = 'http://localhost:3000';
+const STATIC_PORT = 8789;
+
+let win: BrowserWindow | null = null;
+let staticServer: Server | null = null;
+
+/* ---- serve the static-exported Next UI (production) ---------------------- */
+const MIME: Record<string, string> = {
+  '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json',
+  '.svg': 'image/svg+xml', '.png': 'image/png', '.ico': 'image/x-icon', '.woff2': 'font/woff2', '.txt': 'text/plain',
+};
+function startStaticServer(root: string): Promise<string> {
+  return new Promise((resolve) => {
+    staticServer = createServer((req, res) => {
+      const urlPath = decodeURIComponent((req.url ?? '/').split('?')[0]);
+      let file = join(root, urlPath);
+      if (urlPath.endsWith('/')) file = join(file, 'index.html');
+      if (!existsSync(file) && existsSync(`${file}.html`)) file = `${file}.html`;
+      if (!existsSync(file) || !extname(file)) file = join(root, 'index.html'); // SPA fallback
+      res.writeHead(200, { 'content-type': MIME[extname(file)] ?? 'application/octet-stream' });
+      createReadStream(file).pipe(res);
+    });
+    staticServer.listen(STATIC_PORT, '127.0.0.1', () => resolve(`http://127.0.0.1:${STATIC_PORT}/`));
+  });
+}
+
+/* ---- Strava OAuth loopback ---------------------------------------------- */
+function connectStravaFlow(): Promise<ReturnType<typeof meta>> {
+  return new Promise((resolve) => {
+    let authUrl: string;
+    try { authUrl = buildAuthUrl(); }
+    catch (e) {
+      const m = meta();
+      const c = m.connections.find((x) => x.source === 'strava');
+      if (c) { c.status = 'error'; c.detail = (e as Error).message; }
+      return resolve(m);
+    }
+
+    const server = createServer(async (req, res) => {
+      if (!req.url?.startsWith('/strava/callback')) { res.writeHead(404); res.end(); return; }
+      const code = new URL(req.url, `http://127.0.0.1:${STRAVA_REDIRECT_PORT}`).searchParams.get('code');
+      res.writeHead(200, { 'content-type': 'text/html' });
+      res.end('<html><body style="background:#0d0d0e;color:#eceef0;font-family:monospace;padding:40px">SB-00 · Strava linked. You can close this tab.</body></html>');
+      server.close();
+      try {
+        if (!code) throw new Error('No authorization code returned');
+        await exchangeCode(code);
+        await syncStrava();
+      } catch { /* error state is recorded by the services */ }
+      resolve(meta());
+    });
+    server.listen(STRAVA_REDIRECT_PORT, '127.0.0.1', () => shell.openExternal(authUrl));
+    setTimeout(() => { try { server.close(); } catch {} resolve(meta()); }, 180_000);
+  });
+}
+
+/* ---- IPC ----------------------------------------------------------------- */
+function registerIpc() {
+  ipcMain.handle('sb:getSnapshot', () => getSnapshot());
+  ipcMain.handle('sb:getConnections', () => meta());
+  ipcMain.handle('sb:connectStrava', () => connectStravaFlow());
+  ipcMain.handle('sb:connectCronometer', async (_e, username: string, password: string) => {
+    setCronometer({ username, password });
+    try { await syncCronometer(); } catch { /* recorded as error state */ }
+    return meta().connections.find((c) => c.source === 'cronometer')!;
+  });
+  ipcMain.handle('sb:disconnect', (_e, source: SourceId) => disconnect(source));
+  ipcMain.handle('sb:syncNow', (_e, source?: SourceId) => syncNow(source));
+}
+
+async function createWindow() {
+  win = new BrowserWindow({
+    width: 1360, height: 900, backgroundColor: '#0d0d0e',
+    title: 'Systeme Brut // SB-00',
+    webPreferences: { preload: join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false },
+  });
+  if (DEV) {
+    await win.loadURL(DEV_URL);
+  } else {
+    const url = await startStaticServer(join(app.getAppPath(), 'out'));
+    await win.loadURL(url);
+  }
+}
+
+app.whenReady().then(() => {
+  openDb(join(app.getPath('userData'), 'systeme-brut.db'));
+  initSecrets(join(app.getPath('userData'), 'secrets.bin'));
+  registerIpc();
+  startIngestion((m) => win?.webContents.send('sb:syncUpdate', m));
+  createWindow();
+
+  app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
+});
+
+app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
+app.on('quit', () => { stopIngestion(); staticServer?.close(); });

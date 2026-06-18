@@ -1,4 +1,4 @@
-import { Insight } from '@/lib/data';
+import { Insight } from '@/lib/types';
 
 /** A single SB-Σ feed row — flag rows get the magenta spine. */
 export function FeedRow({ insight, showTime = false }: { insight: Insight; showTime?: boolean }) {

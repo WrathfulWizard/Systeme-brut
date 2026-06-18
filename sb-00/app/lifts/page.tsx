@@ -1,19 +1,21 @@
+'use client';
+
 import HubFrame from '@/components/HubFrame';
 import Ascii from '@/components/Ascii';
 import { Feed } from '@/components/Feed';
 import { asciiBars } from '@/lib/ascii';
-import { insights, openFlags, recentSets, prLog, tonnage } from '@/lib/data';
+import { useSnapshot } from '../providers';
 
 export default function Lifts() {
-  const tonnageRows = asciiBars(
-    tonnage.map((t) => ({ label: t.lift, value: t.value, display: `${t.value}kg` })),
-  );
+  const { insights, recentSets, prLog, tonnage } = useSnapshot();
+  const tonnageRows = asciiBars(tonnage.map((t) => ({ label: t.lift, value: t.value, display: `${t.value}kg` })));
   const trainingInfo = insights.filter((i) => i.nodes.includes('training'));
+  const flagCount = insights.filter((i) => i.severity === 'flag').length;
 
   return (
     <div className="page">
       <HubFrame
-        status={<>SYNC OK · 3 NODES · <span className="flag">{openFlags().length} OPEN FLAGS</span></>}
+        status={<>SYNC OK · 3 NODES · <span className="flag">{flagCount} OPEN FLAGS</span></>}
         foot={<span className="flag">Last flag — Sodium, today</span>}
         side={<Feed items={trainingInfo} />}
       >

@@ -1,8 +1,11 @@
+'use client';
+
 import HubFrame from '@/components/HubFrame';
 import { Feed } from '@/components/Feed';
-import { administrations, insights, labResults, regimen, titration } from '@/lib/data';
+import { useSnapshot } from '../providers';
 
 export default function Pharmacology() {
+  const { insights, regimen, administrations, titration, labResults } = useSnapshot();
   const pharmFlags = insights.filter((i) => i.nodes.includes('pharmacology'));
 
   return (

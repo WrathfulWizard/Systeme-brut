@@ -10,12 +10,17 @@ Start with **[`docs/HANDOFF.md`](docs/HANDOFF.md)**.
 
 ## Surfaces
 
-| Code      | Surface           | Status        | Stack                                   |
-| --------- | ----------------- | ------------- | --------------------------------------- |
-| **SB-00** | Master hub (web)  | **building**  | Next.js (App Router) + Supabase         |
-| **SB-01** | Mobile module     | paused        | React Native + Expo, Android-only APK   |
-| **SB-02** | Wrist module      | not started   | Xiaomi Smart Band 10 watchface, BPM-led |
-| **SB-Σ**  | The Synthesizer   | cross-cutting | `insights` + `estimated_serum_levels`   |
+| Code      | Surface              | Status        | Stack                                       |
+| --------- | -------------------- | ------------- | ------------------------------------------- |
+| **SB-00** | Master hub (desktop) | **building**  | Electron + Next.js + SQLite; Supabase-bound |
+| **SB-01** | Mobile module        | paused        | React Native + Expo, Android-only APK       |
+| **SB-02** | Wrist module         | not started   | Xiaomi Smart Band 10 watchface, BPM-led     |
+| **SB-Σ**  | The Synthesizer      | cross-cutting | `insights` + `estimated_serum_levels`       |
+
+SB-00 ships as a **standalone desktop program** with automatic ingestion from
+**Strava** (real API), **Apple Health** (phone bridge → local receiver), and
+**Cronometer** (Apple Health pipeline + an opt-in unofficial scraper). See
+[`sb-00/README.md`](sb-00/README.md) for the connection setup.
 
 Build order is deliberate: **SB-00 first** — it's a web app with no platform
 fight and is genuinely usable on its own once data flows in. See the handoff for
@@ -41,15 +46,17 @@ sb-02-watchface/            Wrist module — separate hardware problem, own READ
 ```bash
 cd sb-00
 npm install
-npm run dev          # http://localhost:3000
+npm run rebuild:native   # better-sqlite3 for Electron's ABI (once)
+npm run desktop          # build + launch the standalone app
 ```
 
-Six screens, mirroring the closed IA: **Overview**, **Lifts**, **Cardio**,
-**Pharmacology**, **Nutrition**, and **Flags (SB-Σ, by node)**. It runs today on
-the static seed data in `sb-00/lib/data.ts` (which mirrors `supabase/seed.sql`),
-so the hub is usable before the live ingestion paths exist. When Supabase is
-connected, swap that module for queries against the v2 schema — the shapes are
-intentionally close to the tables and views they come from.
+Seven screens, mirroring the closed IA: **Overview**, **Lifts**, **Cardio**,
+**Pharmacology**, **Nutrition**, **Flags (SB-Σ, by node)**, and **Connections**
+(link Strava / Cronometer / Apple Health). The Electron backend keeps a local
+**SQLite** store (seeded from the mockup numbers so the hub is populated on
+first run) that the ingestion services write and the UI reads over IPC. SQLite
+mirrors the v2 schema; the Supabase Postgres project remains the schema source
+of truth, and `supabase/migrations/` is what a server-side deployment runs.
 
 ### Design system
 

@@ -1,15 +1,21 @@
+'use client';
+
 import HubFrame from '@/components/HubFrame';
 import { FeedSection } from '@/components/Feed';
-import { insights, isCrossNode, openFlags, NodeGroup } from '@/lib/data';
+import { useSnapshot } from '../providers';
+import type { Insight, NodeGroup } from '@/lib/types';
 
-const single = (node: NodeGroup) =>
-  insights.filter((i) => !isCrossNode(i) && i.nodes.includes(node));
+const isCrossNode = (i: Insight) => i.nodes.length > 1;
 
 export default function Flags() {
+  const { insights } = useSnapshot();
+  const single = (node: NodeGroup) => insights.filter((i) => !isCrossNode(i) && i.nodes.includes(node));
+  const flagCount = insights.filter((i) => i.severity === 'flag').length;
+
   return (
     <div className="page">
       <HubFrame
-        status={<span className="flag">{openFlags().length} OPEN FLAGS</span>}
+        status={<span className="flag">{flagCount} OPEN FLAGS</span>}
         foot={<span className="flag">Last flag — Sodium, today</span>}
       >
         {/* Cross-node — insights whose node_refs span more than one node group */}

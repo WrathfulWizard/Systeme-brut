@@ -1,6 +1,8 @@
+'use client';
+
 import { ReactNode } from 'react';
 import Nav from './Nav';
-import { session } from '@/lib/data';
+import { useSnapshot } from '@/app/providers';
 
 /** The corner coordinate marks shared by every frame. */
 export function Corners({ w = 1280, h = 640 }: { w?: number; h?: number }) {
@@ -29,6 +31,7 @@ interface HubFrameProps {
  * optional side rail, and the session footer.
  */
 export default function HubFrame({ status, foot, side, children }: HubFrameProps) {
+  const { session } = useSnapshot();
   return (
     <div className="hub frame">
       <Corners />

@@ -1,10 +1,14 @@
+'use client';
+
 import HubFrame from '@/components/HubFrame';
 import Ascii from '@/components/Ascii';
 import { Feed } from '@/components/Feed';
 import { asciiBars } from '@/lib/ascii';
-import { cardioGoal, cardioProgression, recentRuns } from '@/lib/data';
+import { useSnapshot } from '../providers';
 
 export default function Cardio() {
+  const { cardioGoal, cardioProgression, recentRuns } = useSnapshot();
+
   const progressionRows = asciiBars(
     cardioProgression.map((c) => ({ label: c.date, value: c.distance, display: `${c.distance.toFixed(1)}km` })),
     20,
@@ -38,9 +42,7 @@ export default function Cardio() {
             <tbody>
               <tr><th>Date</th><th>Distance</th><th>Pace</th><th>Source</th></tr>
               {recentRuns.map((r, i) => (
-                <tr key={i}>
-                  <td>{r.date}</td><td>{r.distance}</td><td>{r.pace}</td><td>{r.source}</td>
-                </tr>
+                <tr key={i}><td>{r.date}</td><td>{r.distance}</td><td>{r.pace}</td><td>{r.source}</td></tr>
               ))}
             </tbody>
           </table>

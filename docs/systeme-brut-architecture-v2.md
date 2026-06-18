@@ -122,6 +122,19 @@ Function webhook receiver.
 **Strava — real API, webhook subscription.** Strava activities land via an Edge
 Function webhook and populate `cardio_sessions` with `source = 'strava'`.
 
+### Desktop implementation (SB-00 standalone)
+
+The SB-00 desktop program implements these same paths client-side against a
+local SQLite mirror, so it works before/without the Supabase deployment:
+
+- **Strava** — OAuth2 + scheduled `/athlete/activities` polling (`desktop/ingest/strava.ts`).
+- **Apple Health** — a loopback HTTP receiver on `:8787` that a phone bridge
+  (Health Auto Export / Shortcut) POSTs to (`desktop/ingest/receiver.ts`).
+  Cronometer rides this (`source = 'cronometer_via_apple_health'`).
+- **Cronometer (opt-in)** — the unofficial credential scraper, pulling the daily
+  CSV export (`source = 'cronometer_direct'`, `desktop/ingest/cronometer.ts`).
+  Credentials are OS-encrypted via Electron `safeStorage`.
+
 ---
 
 ## Tech stack (decided, not re-litigated)

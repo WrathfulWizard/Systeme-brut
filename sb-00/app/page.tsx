@@ -1,27 +1,24 @@
+'use client';
+
 import HubFrame from '@/components/HubFrame';
 import Ascii from '@/components/Ascii';
 import { Feed } from '@/components/Feed';
 import SerumLiquidRender from '@/components/SerumLiquidRender';
 import { asciiBars } from '@/lib/ascii';
-import {
-  insights, openFlags, regimen, labResults, serum7d, tonnage,
-} from '@/lib/data';
+import { useSnapshot } from './providers';
 
 export default function Overview() {
-  const serumRows = asciiBars(
-    serum7d.map((s) => ({ label: s.day, value: s.mg, display: `${s.mg}mg` })),
-  );
-  const tonnageRows = asciiBars(
-    tonnage.map((t) => ({ label: t.lift, value: t.value, display: `${t.value}kg` })),
-  );
+  const { insights, regimen, labResults, serum7d, tonnage } = useSnapshot();
 
-  // serum readout levels — most-recent estimate plus its decay tail, normalised
-  const peak = serum7d[0].mg;
-  const levels = [serum7d[0], serum7d[2], serum7d[4], serum7d[6]].map((s) =>
-    Math.round((s.mg / peak) * 100),
-  );
+  const serumRows = asciiBars(serum7d.map((s) => ({ label: s.day, value: s.mg, display: `${s.mg}mg` })));
+  const tonnageRows = asciiBars(tonnage.map((t) => ({ label: t.lift, value: t.value, display: `${t.value}kg` })));
 
-  const flagCount = openFlags().length;
+  const peak = serum7d.length ? serum7d.reduce((m, s) => Math.max(m, s.mg), 1) : 1;
+  const pick = (i: number) => serum7d[i] ?? serum7d[serum7d.length - 1] ?? { mg: 0 };
+  const levels = [pick(0), pick(2), pick(4), pick(6)].map((s) => Math.round((s.mg / peak) * 100));
+  const current = serum7d.length ? serum7d[serum7d.length - 1].mg : 0;
+
+  const flagCount = insights.filter((i) => i.severity === 'flag').length;
 
   return (
     <div className="page">
@@ -36,9 +33,7 @@ export default function Overview() {
             <tbody>
               <tr><th>Compound</th><th>Daily dose</th><th>Route</th></tr>
               {regimen.map((r) => (
-                <tr key={r.compound}>
-                  <td>{r.compound}</td><td>{r.dose}</td><td>{r.route}</td>
-                </tr>
+                <tr key={r.compound}><td>{r.compound}</td><td>{r.dose}</td><td>{r.route}</td></tr>
               ))}
             </tbody>
           </table>
@@ -49,7 +44,7 @@ export default function Overview() {
           <div className="liquid-card">
             <span className="tag">Visual readout</span>
             <SerumLiquidRender levels={levels} />
-            <div className="read">{serum7d[0].mg}<span className="v">mg, current</span></div>
+            <div className="read">{current}<span className="v">mg, current</span></div>
           </div>
           <Ascii rows={serumRows} />
         </div>

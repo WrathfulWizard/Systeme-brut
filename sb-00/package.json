@@ -2,22 +2,69 @@
   "name": "sb-00",
   "version": "0.1.0",
   "private": true,
+  "description": "Systeme Brut — SB-00 master hub, standalone desktop program.",
+  "author": "Systeme Brut",
+  "main": "dist-electron/desktop/main.js",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start"
+    "start": "next start",
+    "build:main": "tsc -p desktop/tsconfig.json && node desktop/copy-assets.mjs",
+    "rebuild:native": "electron-rebuild -f -w better-sqlite3",
+    "desktop": "npm run build && npm run build:main && electron .",
+    "desktop:dev": "npm run build:main && concurrently -k -n next,electron \"next dev\" \"node desktop/dev-launch.mjs\"",
+    "dist": "npm run build && npm run build:main && electron-builder"
   },
   "dependencies": {
     "@types/three": "^0.184.1",
+    "better-sqlite3": "^12.11.1",
     "next": "16.2.9",
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "three": "^0.184.0"
   },
   "devDependencies": {
+    "@electron/rebuild": "^4.0.4",
+    "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "concurrently": "^10.0.3",
+    "electron": "^42.4.1",
+    "electron-builder": "^26.15.3",
     "typescript": "^5"
+  },
+  "build": {
+    "appId": "com.systemebrut.sb00",
+    "productName": "Systeme Brut SB-00",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist-electron/**/*",
+      "out/**/*",
+      "package.json"
+    ],
+    "asarUnpack": [
+      "**/node_modules/better-sqlite3/**"
+    ],
+    "npmRebuild": true,
+    "mac": {
+      "category": "public.app-category.healthcare-fitness",
+      "target": [
+        "dmg"
+      ]
+    },
+    "win": {
+      "target": [
+        "nsis"
+      ]
+    },
+    "linux": {
+      "target": [
+        "AppImage"
+      ],
+      "category": "Utility"
+    }
   }
 }

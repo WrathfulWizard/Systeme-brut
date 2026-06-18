@@ -16,6 +16,7 @@ const ITEMS = [
   { href: '/pharmacology', label: 'Pharmacology' },
   { href: '/nutrition', label: 'Nutrition' },
   { href: '/flags', label: 'Flags, SB-Σ' },
+  { href: '/connections', label: 'Connections' },
 ];
 
 export default function Nav() {
