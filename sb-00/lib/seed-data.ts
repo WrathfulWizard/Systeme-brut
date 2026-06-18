@@ -19,9 +19,9 @@ export const seedSnapshot: Snapshot = {
       body: 'Vitamin D trending down three weeks, consistent with reduced outdoor training.' },
   ],
   recentSets: [
-    { id: 1, date: '06.17', exercise: 'Squat', set: 'RP1', weight: '140kg', reps: '8', iso: '2026-06-17', setKind: 'rp1', weightKg: 140, repsN: 8 },
-    { id: 2, date: '06.17', exercise: 'Squat', set: 'RP burst', weight: '140kg', reps: '3', iso: '2026-06-17', setKind: 'rp_burst', weightKg: 140, repsN: 3 },
-    { id: 3, date: '06.15', exercise: 'Bench', set: 'RP1', weight: '100kg', reps: '6', iso: '2026-06-15', setKind: 'rp1', weightKg: 100, repsN: 6 },
+    { id: 1, date: '06.17', exercise: 'Squat', set: 'RP', weight: '140kg', reps: '12·5·3', iso: '2026-06-17', setKind: 'rp', weightKg: 140, repsN: 20, rpReps: [12, 5, 3] },
+    { id: 2, date: '06.17', exercise: 'Leg Press', set: 'Widow', weight: '300kg', reps: '17/20', iso: '2026-06-17', setKind: 'widowmaker', weightKg: 300, repsN: 17, targetReps: 20, missedTarget: true },
+    { id: 3, date: '06.15', exercise: 'Chest', set: 'Stretch', weight: '20kg', reps: '60s', iso: '2026-06-15', setKind: 'stretch', weightKg: 20, repsN: 0, seconds: 60 },
     { id: 4, date: '06.15', exercise: 'Bench', set: 'Straight', weight: '100kg', reps: '6', iso: '2026-06-15', setKind: 'straight', weightKg: 100, repsN: 6 },
   ],
   prLog: [
@@ -34,6 +34,13 @@ export const seedSnapshot: Snapshot = {
     { lift: 'SQUAT', value: 8120 }, { lift: 'BENCH', value: 6240 },
     { lift: 'ROW', value: 7480 }, { lift: 'OHP', value: 4310 },
   ],
+  trainingStatus: {
+    weeksSinceDeload: 3, deloadDue: false,
+    weeklyTonnage: [
+      { week: '2026-21', volume: 41200 }, { week: '2026-22', volume: 43800 },
+      { week: '2026-23', volume: 45100 }, { week: '2026-24', volume: 46900 },
+    ],
+  },
   cardioGoal: { metric: 'distance_km', target: 10, longest: 7.2, unit: 'km' },
   cardioProgression: [
     { date: '06.06', distance: 5.0 }, { date: '06.10', distance: 5.5 },

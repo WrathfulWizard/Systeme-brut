@@ -65,6 +65,12 @@ function migrate(db: Database.Database) {
     db.exec('ALTER TABLE protocols ADD COLUMN ended_at TEXT');
   }
 
+  // sets: rest-pause bursts / stretch seconds / widowmaker target (new set kinds)
+  const scols = db.prepare('PRAGMA table_info(sets)').all() as { name: string }[];
+  if (!scols.some((c) => c.name === 'rp_reps')) db.exec('ALTER TABLE sets ADD COLUMN rp_reps TEXT');
+  if (!scols.some((c) => c.name === 'seconds')) db.exec('ALTER TABLE sets ADD COLUMN seconds INTEGER');
+  if (!scols.some((c) => c.name === 'target_reps')) db.exec('ALTER TABLE sets ADD COLUMN target_reps INTEGER');
+
   // Backfill a continuous protocol from each compound's latest dose.
   const protoCount = (db.prepare('SELECT COUNT(*) AS n FROM protocols').get() as { n: number }).n;
   if (protoCount === 0) {

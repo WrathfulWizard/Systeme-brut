@@ -19,6 +19,8 @@ function DesktopNote() {
 }
 
 /* ---- Training: log / edit a set ----------------------------------------- */
+const BODYPARTS = ['Chest', 'Back', 'Shoulders', 'Quads', 'Hamstrings', 'Biceps', 'Triceps', 'Calves', 'Abs', 'Glutes'];
+
 export function LiftLogForm({ editing, onDone }: { editing?: SetRow | null; onDone?: () => void }) {
   const { snapshot, addSet, updateSet, isDesktop } = useSb();
   const isEdit = !!editing;
@@ -28,16 +30,37 @@ export function LiftLogForm({ editing, onDone }: { editing?: SetRow | null; onDo
   const [setKind, setSetKind] = useState<SetKind>(editing?.setKind ?? 'straight');
   const [weight, setWeight] = useState(editing ? String(editing.weightKg) : '');
   const [reps, setReps] = useState(editing ? String(editing.repsN) : '');
+  const [rp, setRp] = useState<string[]>(() => {
+    const r = (editing?.rpReps ?? []).map(String);
+    return [r[0] ?? '', r[1] ?? '', r[2] ?? '', r[3] ?? ''];
+  });
+  const [seconds, setSeconds] = useState(editing?.seconds != null ? String(editing.seconds) : '');
+  const [target, setTarget] = useState(editing?.targetReps != null ? String(editing.targetReps) : '20');
   const [busy, setBusy] = useState(false);
 
   if (!isDesktop) return <DesktopNote />;
-  const valid = !!exercise.trim() && Number(weight) > 0 && Number(reps) > 0;
+
+  const isStretch = setKind === 'stretch';
+  const w = Number(weight);
+  const valid = !!exercise.trim() && w > 0 && (
+    setKind === 'straight' ? Number(reps) > 0
+    : setKind === 'widowmaker' ? Number(reps) > 0 && Number(target) > 0
+    : setKind === 'rp' ? Number(rp[0]) > 0
+    : Number(seconds) > 0   // stretch
+  );
+
   const submit = async () => {
     setBusy(true);
     try {
-      const input = { date, exercise: exercise.trim(), setKind, weightKg: Number(weight), reps: Number(reps) };
+      const input = {
+        date, exercise: exercise.trim(), setKind, weightKg: w,
+        reps: setKind === 'straight' || setKind === 'widowmaker' ? Number(reps) : undefined,
+        rpReps: setKind === 'rp' ? rp.map(Number).filter((n) => n > 0) : undefined,
+        seconds: isStretch ? Number(seconds) : undefined,
+        targetReps: setKind === 'widowmaker' ? Number(target) : undefined,
+      };
       if (isEdit && editing) await updateSet(editing.id, input);
-      else { await addSet(input); setExercise(''); setWeight(''); setReps(''); setOpen(false); }
+      else { await addSet(input); setExercise(''); setWeight(''); setReps(''); setRp(['', '', '', '']); setSeconds(''); setOpen(false); }
       onDone?.();
     } finally { setBusy(false); }
   };
@@ -46,18 +69,49 @@ export function LiftLogForm({ editing, onDone }: { editing?: SetRow | null; onDo
     <div className="logform">
       <div className="field"><label>Date</label>
         <input className="fld" type="date" value={date} onChange={(e) => setDate(e.target.value)} /></div>
-      <div className="field"><label>Exercise</label>
-        <input className="fld" list="exercise-list" placeholder="Squat" value={exercise} onChange={(e) => setExercise(e.target.value)} />
-        <datalist id="exercise-list">{snapshot.catalog.exercises.map((x) => <option key={x} value={x} />)}</datalist>
-      </div>
       <div className="field"><label>Set</label>
         <select className="fld" value={setKind} onChange={(e) => setSetKind(e.target.value as SetKind)}>
-          <option value="straight">Straight</option><option value="rp1">RP1</option><option value="rp_burst">RP burst</option>
+          <option value="straight">Straight</option>
+          <option value="rp">Rest-pause</option>
+          <option value="widowmaker">Widowmaker</option>
+          <option value="stretch">Stretch (DC)</option>
         </select></div>
+      <div className="field"><label>{isStretch ? 'Bodypart' : 'Exercise'}</label>
+        <input className="fld" list={isStretch ? 'bodypart-list' : 'exercise-list'} placeholder={isStretch ? 'Chest' : 'Squat'} value={exercise} onChange={(e) => setExercise(e.target.value)} />
+        <datalist id="exercise-list">{snapshot.catalog.exercises.map((x) => <option key={x} value={x} />)}</datalist>
+        <datalist id="bodypart-list">{BODYPARTS.map((x) => <option key={x} value={x} />)}</datalist>
+      </div>
       <div className="field"><label>Weight (kg)</label>
         <input className="fld w-narrow" type="number" inputMode="decimal" value={weight} onChange={(e) => setWeight(e.target.value)} /></div>
-      <div className="field"><label>Reps</label>
-        <input className="fld w-narrow" type="number" inputMode="numeric" value={reps} onChange={(e) => setReps(e.target.value)} /></div>
+
+      {setKind === 'straight' && (
+        <div className="field"><label>Reps</label>
+          <input className="fld w-narrow" type="number" inputMode="numeric" value={reps} onChange={(e) => setReps(e.target.value)} /></div>
+      )}
+      {setKind === 'widowmaker' && (
+        <>
+          <div className="field"><label>Reps hit</label>
+            <input className="fld w-narrow" type="number" inputMode="numeric" value={reps} onChange={(e) => setReps(e.target.value)} /></div>
+          <div className="field"><label>Target</label>
+            <input className="fld w-narrow" type="number" inputMode="numeric" value={target} onChange={(e) => setTarget(e.target.value)} /></div>
+        </>
+      )}
+      {setKind === 'rp' && (
+        <div className="field"><label>Bursts (reps)</label>
+          <div style={{ display: 'flex', gap: 6 }}>
+            {rp.map((v, i) => (
+              <input key={i} className="fld" style={{ width: 52, minWidth: 0 }} type="number" inputMode="numeric"
+                placeholder={`#${i + 1}`} value={v}
+                onChange={(e) => setRp((prev) => prev.map((x, j) => (j === i ? e.target.value : x)))} />
+            ))}
+          </div>
+        </div>
+      )}
+      {isStretch && (
+        <div className="field"><label>Hold (sec)</label>
+          <input className="fld w-narrow" type="number" inputMode="numeric" value={seconds} onChange={(e) => setSeconds(e.target.value)} /></div>
+      )}
+
       <button className="btn primary" disabled={!valid || busy} onClick={submit}>{busy ? 'Saving…' : isEdit ? 'Save' : 'Add set'}</button>
       {isEdit && <button className="btn" disabled={busy} onClick={onDone}>Cancel</button>}
     </div>

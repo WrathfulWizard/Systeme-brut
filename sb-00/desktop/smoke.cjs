@@ -241,6 +241,23 @@ console.log('✓ protocol + titration  (test 14→16, deca 7→10) · flags reso
   console.log('✓ strava multi-sport     (run / ride / swim mapped, non-cardio skipped)');
 }
 
+// --- new set kinds: rp / widowmaker / stretch + deload reminder ---
+{
+  mut.addSet({ date: '2026-06-18', exercise: 'Hack Squat', setKind: 'rp', weightKg: 200, rpReps: [12, 5, 3] });
+  mut.addSet({ date: '2026-06-18', exercise: 'Leg Press', setKind: 'widowmaker', weightKg: 300, reps: 16, targetReps: 20 });
+  mut.addSet({ date: '2026-06-18', exercise: 'Chest', setKind: 'stretch', weightKg: 25, seconds: 60 });
+  const s = getSnapshot();
+  const rp = s.recentSets.find((x) => x.exercise === 'Hack Squat');
+  assert.ok(rp && rp.setKind === 'rp' && rp.repsN === 20 && /12/.test(rp.reps), 'RP stores bursts; effective reps = sum (20)');
+  const wm = s.recentSets.find((x) => x.exercise === 'Leg Press');
+  assert.ok(wm && wm.missedTarget === true && /16\/20/.test(wm.reps), 'widowmaker miss marked in the row');
+  const stretch = s.recentSets.find((x) => x.exercise === 'Chest' && x.setKind === 'stretch');
+  assert.ok(stretch && stretch.repsN === 0 && /60s/.test(stretch.reps), 'stretch held for time, 0 working volume');
+  assert.ok(s.insights.find((i) => /Widowmaker on Leg Press/i.test(i.body)), 'SB-Σ auto-raised a widowmaker-miss flag');
+  assert.ok(typeof s.trainingStatus.weeksSinceDeload === 'number' && Array.isArray(s.trainingStatus.weeklyTonnage), 'training status (deload cadence + weekly tonnage) computed');
+  console.log('✓ set kinds + deload     (rp sum=20, widowmaker miss flagged, stretch 60s, training status)');
+}
+
 // --- sweep: SB-Σ raises persistent flags, de-duplicated ---
 {
   const openBefore = getSnapshot().insights.length;

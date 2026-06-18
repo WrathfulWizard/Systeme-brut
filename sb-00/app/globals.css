@@ -334,6 +334,9 @@ tr.prrow td:last-child { font-weight: 700; color: var(--text); }
 .sweep-note { margin-top: 10px; font-family: var(--font-mono); font-size: 11px; color: var(--dim);
   letter-spacing: 0.02em; border-left: 2px solid var(--mag); padding-left: 10px; }
 
+.deload-banner { margin-bottom: 16px; padding: 10px 14px; border: 1px solid var(--mag);
+  background: rgba(224, 21, 122, 0.06); font-family: var(--font-mono); font-size: 12px; color: var(--text); }
+
 .agent-setup { border: 1px solid var(--line); padding: 16px; font-family: var(--font-mono); font-size: 12px; line-height: 1.7; color: var(--dim); }
 .agent-setup b { color: var(--text); }
 .agent-setup code { background: var(--line-soft); padding: 1px 5px; color: var(--text); }

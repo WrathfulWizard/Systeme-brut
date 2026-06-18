@@ -1,5 +1,15 @@
 import { getDb } from './index';
+import { computeTrainingStatus } from './training';
 import type { LiftInput, AdminInput, TitrationInput, LabPanelInput, ProtocolInput } from '../../lib/types';
+
+/** Effective rep count for volume: RP sums its bursts, a stretch is held not repped. */
+function effectiveReps(input: LiftInput): number {
+  if (input.setKind === 'rp') return (input.rpReps ?? []).reduce((a, b) => a + (b || 0), 0);
+  if (input.setKind === 'stretch') return 0;
+  return input.reps ?? 0;
+}
+const rpJson = (input: LiftInput) => (input.setKind === 'rp' && input.rpReps?.length ? JSON.stringify(input.rpReps.filter((n) => n > 0)) : null);
+const TARGET_DEFAULT = 20;
 
 /**
  * Manual logging — the write path behind the in-app log forms (Training and
@@ -39,18 +49,54 @@ export function addSet(input: LiftInput) {
   const exerciseId = ensureExercise(input.exercise);
   const sessionId = sessionForDate(input.date);
   const ord = (db.prepare('SELECT COALESCE(MAX(ordinal),0)+1 AS n FROM sets WHERE session_id = ?').get(sessionId) as { n: number }).n;
+  const target = input.setKind === 'widowmaker' ? (input.targetReps ?? TARGET_DEFAULT) : null;
   db.prepare(
-    'INSERT INTO sets (session_id, exercise_id, set_kind, weight_kg, reps, ordinal) VALUES (?,?,?,?,?,?)',
-  ).run(sessionId, exerciseId, input.setKind, input.weightKg, input.reps, ord);
+    'INSERT INTO sets (session_id, exercise_id, set_kind, weight_kg, reps, rp_reps, seconds, target_reps, ordinal) VALUES (?,?,?,?,?,?,?,?,?)',
+  ).run(sessionId, exerciseId, input.setKind, input.weightKg, effectiveReps(input),
+        rpJson(input), input.setKind === 'stretch' ? (input.seconds ?? null) : null, target, ord);
+
+  // SB-Σ reminders fired on the write path (deduped, never on a read):
+  if (input.setKind === 'widowmaker' && (input.reps ?? 0) < (target ?? TARGET_DEFAULT)) {
+    raiseDedupedInsight(
+      `widowmaker-miss-${input.exercise}-${input.date}`.toLowerCase(),
+      'flag',
+      `Widowmaker on ${input.exercise}: ${input.reps ?? 0}/${target ?? TARGET_DEFAULT} reps — short of target. Hold the weight here until you hit ${target ?? TARGET_DEFAULT}.`,
+      ['sets:0'],
+    );
+  }
+  maybeRaiseDeloadFlag();
 }
 
 export function updateSet(id: number, input: LiftInput) {
   const db = getDb();
   const exerciseId = ensureExercise(input.exercise);
   const sessionId = sessionForDate(input.date);
+  const target = input.setKind === 'widowmaker' ? (input.targetReps ?? TARGET_DEFAULT) : null;
   db.prepare(
-    'UPDATE sets SET session_id=?, exercise_id=?, set_kind=?, weight_kg=?, reps=? WHERE id=?',
-  ).run(sessionId, exerciseId, input.setKind, input.weightKg, input.reps, id);
+    'UPDATE sets SET session_id=?, exercise_id=?, set_kind=?, weight_kg=?, reps=?, rp_reps=?, seconds=?, target_reps=? WHERE id=?',
+  ).run(sessionId, exerciseId, input.setKind, input.weightKg, effectiveReps(input),
+        rpJson(input), input.setKind === 'stretch' ? (input.seconds ?? null) : null, target, id);
+}
+
+/** Raise a flag once (deduped by key): skipped if open or resolved within 14d. */
+export function raiseDedupedInsight(key: string, severity: 'info' | 'flag', body: string, refs: string[] = []): boolean {
+  const db = getDb();
+  const recentCutoff = new Date(Date.now() - 14 * 86_400_000).toISOString();
+  const exists = db.prepare('SELECT 1 FROM insights WHERE dedup_key = ? AND (resolved_at IS NULL OR resolved_at > ?) LIMIT 1');
+  if (exists.get(key, recentCutoff)) return false;
+  db.prepare('INSERT INTO insights (created_at, severity, body, node_refs, dedup_key) VALUES (?,?,?,?,?)')
+    .run(nowIso(), severity, body, JSON.stringify(refs), key);
+  return true;
+}
+
+/** After ≥4 hard weeks with no back-off, remind the operator to deload. */
+export function maybeRaiseDeloadFlag() {
+  const st = computeTrainingStatus();
+  if (st.deloadDue) {
+    raiseDedupedInsight('deload-due', 'flag',
+      `${st.weeksSinceDeload} weeks of training with no back-off week. Schedule a deload — drop volume ~40% for a week to consolidate.`,
+      ['sets:0']);
+  }
 }
 
 export function deleteSet(id: number) {

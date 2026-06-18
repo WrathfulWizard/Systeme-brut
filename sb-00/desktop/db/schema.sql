@@ -23,9 +23,12 @@ CREATE TABLE IF NOT EXISTS sets (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   session_id INTEGER NOT NULL REFERENCES training_sessions(id) ON DELETE CASCADE,
   exercise_id INTEGER NOT NULL REFERENCES exercises(id),
-  set_kind TEXT DEFAULT 'straight',
+  set_kind TEXT DEFAULT 'straight',  -- straight / rp / widowmaker / stretch
   weight_kg REAL NOT NULL,
-  reps INTEGER NOT NULL,
+  reps INTEGER NOT NULL,             -- effective reps (RP = sum of bursts, stretch = 0)
+  rp_reps TEXT,                      -- JSON [a,b,c,d] for rest-pause bursts
+  seconds INTEGER,                   -- hold time for DC weighted stretches
+  target_reps INTEGER,              -- widowmaker target (default 20)
   ordinal INTEGER
 );
 

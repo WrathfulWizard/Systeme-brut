@@ -1,11 +1,19 @@
 import { getDb } from './index';
 import { getCatalog } from './mutations';
+import { computeTrainingStatus } from './training';
 import { getStravaApp } from '../ingest/secrets';
 import { lookup } from '../pharma/compounds';
 import { protocolSerum, discreteSerum } from '../pharma/serum';
 import type {
-  Snapshot, Insight, NodeGroup, SyncMeta, ConnectionState, SourceId, SourceStatus, SerumCompound,
+  Snapshot, Insight, NodeGroup, SyncMeta, ConnectionState, SourceId, SourceStatus, SerumCompound, SetKind,
 } from '../../lib/types';
+
+/** Normalize stored set kinds (incl. legacy rp1/rp_burst) to the current set. */
+function mapSetKind(kind: string): SetKind {
+  if (kind === 'rp' || kind === 'widowmaker' || kind === 'stretch' || kind === 'straight') return kind;
+  if (kind === 'rp1' || kind === 'rp_burst') return 'rp';
+  return 'straight';
+}
 
 const stravaConfigured = () =>
   !!getStravaApp()?.clientId || !!process.env.STRAVA_CLIENT_ID;
@@ -63,17 +71,28 @@ export function getSnapshot(): Snapshot {
 
   // recent sets (latest few), formatted + raw for edit
   const recentSets = (db.prepare(`
-    SELECT s.id AS id, ts.occurred_at AS at, e.name AS exercise, s.set_kind AS kind, s.weight_kg AS w, s.reps AS reps
+    SELECT s.id AS id, ts.occurred_at AS at, e.name AS exercise, s.set_kind AS kind,
+           s.weight_kg AS w, s.reps AS reps, s.rp_reps AS rpReps, s.seconds AS seconds, s.target_reps AS target
     FROM sets s JOIN training_sessions ts ON ts.id = s.session_id JOIN exercises e ON e.id = s.exercise_id
-    ORDER BY ts.occurred_at DESC, s.ordinal ASC LIMIT 6
-  `).all() as { id: number; at: string; exercise: string; kind: string; w: number; reps: number }[])
-    .map((r) => ({
-      id: r.id, date: md(r.at), exercise: r.exercise,
-      set: r.kind === 'rp1' ? 'RP1' : r.kind === 'rp_burst' ? 'RP burst' : 'Straight',
-      weight: `${r.w}kg`, reps: String(r.reps),
-      iso: r.at.slice(0, 10), setKind: (r.kind as 'straight' | 'rp1' | 'rp_burst') ?? 'straight',
-      weightKg: r.w, repsN: r.reps,
-    }));
+    ORDER BY ts.occurred_at DESC, s.ordinal ASC LIMIT 8
+  `).all() as { id: number; at: string; exercise: string; kind: string; w: number; reps: number; rpReps: string | null; seconds: number | null; target: number | null }[])
+    .map((r) => {
+      const rp = r.rpReps ? (JSON.parse(r.rpReps) as number[]) : undefined;
+      const kind = mapSetKind(r.kind);
+      const missedTarget = kind === 'widowmaker' && r.target != null && r.reps < r.target;
+      const setLabel = kind === 'rp' ? 'RP' : kind === 'widowmaker' ? 'Widow' : kind === 'stretch' ? 'Stretch'
+        : r.kind === 'rp1' ? 'RP1' : r.kind === 'rp_burst' ? 'RP burst' : 'Straight';
+      const repsDisplay = kind === 'rp' && rp?.length ? rp.join('·')
+        : kind === 'stretch' ? `${r.seconds ?? 0}s`
+        : kind === 'widowmaker' && r.target != null ? `${r.reps}/${r.target}`
+        : String(r.reps);
+      return {
+        id: r.id, date: md(r.at), exercise: r.exercise, set: setLabel,
+        weight: `${r.w}kg`, reps: repsDisplay,
+        iso: r.at.slice(0, 10), setKind: kind, weightKg: r.w, repsN: r.reps,
+        rpReps: rp, seconds: r.seconds ?? undefined, targetReps: r.target ?? undefined, missedTarget,
+      };
+    });
 
   // session volume per exercise → PR (max) and weekly tonnage (sum, 7d)
   const sessionVol = db.prepare(`
@@ -238,7 +257,8 @@ export function getSnapshot(): Snapshot {
   };
 
   return {
-    insights, recentSets, prLog, tonnage, cardioGoal, cardioProgression, recentRuns, cardioBySport, gear,
+    insights, recentSets, prLog, tonnage, trainingStatus: computeTrainingStatus(),
+    cardioGoal, cardioProgression, recentRuns, cardioBySport, gear,
     protocols, administrations, titration, labResults, serum7d, serumByCompound,
     dailyTotals, calories7d, vitamins, minerals, weightGoal,
     session: { id: 'SB-00', clock: '03:14:09' },

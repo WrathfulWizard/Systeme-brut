@@ -11,7 +11,8 @@ export function buildContext(): string {
 
   L.push('## TRAINING — LIFTING');
   L.push('PRs (volume): ' + s.prLog.map((p) => `${p.exercise} ${p.prVolume}kg${p.status === 'NEW' ? ' (new)' : ''}`).join(', '));
-  L.push('Recent sets: ' + s.recentSets.slice(0, 6).map((r) => `${r.date} ${r.exercise} ${r.weight}×${r.reps}`).join('; '));
+  L.push('Recent sets: ' + s.recentSets.slice(0, 8).map((r) => `${r.date} ${r.exercise} ${r.set} ${r.weight}×${r.reps}${r.missedTarget ? ' (MISSED TARGET)' : ''}`).join('; '));
+  L.push(`Deload: ${s.trainingStatus.weeksSinceDeload} weeks since back-off${s.trainingStatus.deloadDue ? ' — DELOAD DUE' : ''}`);
 
   L.push('\n## TRAINING — CARDIO');
   L.push(`Goal: ${s.cardioGoal.target}${s.cardioGoal.unit}, longest ${s.cardioGoal.longest}${s.cardioGoal.unit}`);

@@ -20,6 +20,8 @@ export interface Insight {
 export interface SetRow {
   id: number; date: string; exercise: string; set: string; weight: string; reps: string;
   iso: string; setKind: SetKind; weightKg: number; repsN: number;
+  rpReps?: number[]; seconds?: number; targetReps?: number;
+  missedTarget?: boolean;   // widowmaker logged short of target
 }
 export interface PrRow { exercise: string; prVolume: number; lastBeat: string; status: string; }
 export interface Bar { lift: string; value: number; }
@@ -64,6 +66,8 @@ export interface Snapshot {
   recentSets: SetRow[];
   prLog: PrRow[];
   tonnage: Bar[];
+  /** deload cadence + weekly tonnage trend (training analysis) */
+  trainingStatus: { weeksSinceDeload: number; deloadDue: boolean; weeklyTonnage: { week: string; volume: number }[] };
   cardioGoal: { metric: string; target: number; longest: number; unit: string };
   cardioProgression: CardioPoint[];
   recentRuns: RunRow[];
@@ -93,9 +97,21 @@ export interface Snapshot {
 
 /* ---- manual logging inputs (write path) --------------------------------- */
 
-export type SetKind = 'straight' | 'rp1' | 'rp_burst';
+// straight = standard work set · rp = rest-pause (one set, several bursts) ·
+// widowmaker = single all-out set to a rep target (default 20) · stretch = DC
+// weighted stretch held for time, logged against a bodypart not an exercise.
+export type SetKind = 'straight' | 'rp' | 'widowmaker' | 'stretch';
 
-export interface LiftInput { date: string; exercise: string; setKind: SetKind; weightKg: number; reps: number; }
+export interface LiftInput {
+  date: string;
+  exercise: string;        // for a stretch, this carries the bodypart
+  setKind: SetKind;
+  weightKg: number;
+  reps?: number;           // straight / widowmaker
+  rpReps?: number[];       // rest-pause bursts (up to 4)
+  seconds?: number;        // stretch hold time
+  targetReps?: number;     // widowmaker target (default 20)
+}
 export interface AdminInput { compound: string; doseMg: number; route: string; administeredAt: string; }
 export interface TitrationInput { compound: string; before?: number; after: number; notes?: string; changedAt: string; }
 export interface LabResultInput { marker: string; value: number; unit?: string; low?: number; high?: number; }

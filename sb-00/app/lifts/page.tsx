@@ -11,7 +11,7 @@ import type { SetRow } from '@/lib/types';
 
 export default function Lifts() {
   const { snapshot, deleteSet, isDesktop } = useSb();
-  const { insights, recentSets, prLog, tonnage } = snapshot;
+  const { insights, recentSets, prLog, tonnage, trainingStatus } = snapshot;
   const [editing, setEditing] = useState<SetRow | null>(null);
   const tonnageRows = asciiBars(tonnage.map((t) => ({ label: t.lift, value: t.value, display: `${t.value}kg` })));
   const trainingInfo = insights.filter((i) => i.nodes.includes('training'));
@@ -24,15 +24,22 @@ export default function Lifts() {
         foot={<span className="flag">Last flag — Sodium, today</span>}
         side={<Feed items={trainingInfo} />}
       >
+        {trainingStatus.deloadDue && (
+          <div className="deload-banner">
+            <span className="flag">DELOAD DUE</span> — {trainingStatus.weeksSinceDeload} weeks without a back-off. Drop volume ~40% this week.
+          </div>
+        )}
+
         <div className="block">
           <LiftLogForm key={editing?.id ?? 'new'} editing={editing} onDone={() => setEditing(null)} />
           <p className="eyebrow">Recent sets</p>
           <table>
             <tbody>
-              <tr><th>Date</th><th>Exercise</th><th>Set</th><th>Weight</th><th>Reps</th>{isDesktop && <th />}</tr>
+              <tr><th>Date</th><th>Movement</th><th>Set</th><th>Weight</th><th>Reps / hold</th>{isDesktop && <th />}</tr>
               {recentSets.map((s) => (
-                <tr key={s.id} className={editing?.id === s.id ? 'prrow' : undefined}>
-                  <td>{s.date}</td><td>{s.exercise}</td><td>{s.set}</td><td>{s.weight}</td><td>{s.reps}</td>
+                <tr key={s.id} className={s.missedTarget ? 'flagrow' : editing?.id === s.id ? 'prrow' : undefined}>
+                  <td>{s.date}</td><td>{s.exercise}</td><td>{s.set}</td><td>{s.weight}</td>
+                  <td>{s.reps}{s.missedTarget && <span className="flag"> ⚠</span>}</td>
                   {isDesktop && (
                     <td className="rowact">
                       <button className="rowbtn" onClick={() => setEditing(s)}>edit</button>
