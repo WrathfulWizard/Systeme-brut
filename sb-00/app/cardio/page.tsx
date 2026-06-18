@@ -28,6 +28,7 @@ export default function Cardio() {
         foot={<span>Next long run — due 06.20</span>}
         side={<Feed items={info} />}
       >
+        <p className="synced-note">Synced from <span className="flag">Strava</span> — link it on the Connections screen. Runs import automatically; no manual entry here.</p>
         <div className="block">
           <p className="eyebrow">Progression — target {cardioGoal.target}km</p>
           <Ascii rows={progressionRows} />

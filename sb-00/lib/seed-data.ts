@@ -100,4 +100,8 @@ export const seedSnapshot: Snapshot = {
     { source: 'cronometer', status: 'disconnected' },
     { source: 'apple_health', status: 'disconnected' },
   ] },
+  catalog: {
+    exercises: ['Squat', 'Bench', 'Row', 'OHP'],
+    compounds: ['Testosterone Cyp', 'Anavar'],
+  },
 };

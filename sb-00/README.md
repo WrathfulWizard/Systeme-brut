@@ -37,6 +37,21 @@ npm run dist                  # → release/
 The app also still builds as a plain static web bundle (`npm run build` → `out/`),
 where it renders the seed data with connections disabled.
 
+## Getting your own data in
+
+Two ways, by node:
+
+- **Training & Pharmacology — hand-logged.** Each screen has a `＋ Log …`
+  button (Lifts: log a set; Pharmacology: log a dose, a titration change, or a
+  lab panel). Entries write straight to the local SQLite store and the screen
+  updates immediately. New exercises/compounds you type are remembered.
+- **Cardio & Nutrition — synced.** These pull in automatically — runs from
+  Strava, nutrition from Cronometer — so there's no manual entry on those
+  screens. Link them on **Connections** (below).
+
+The app ships seeded with demo numbers so it isn't empty on first launch; your
+logged and synced entries accumulate alongside them.
+
 ## Data sources — how each one actually pulls
 
 Open the **Connections** screen in the app to link them.

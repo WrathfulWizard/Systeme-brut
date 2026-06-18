@@ -1,7 +1,10 @@
 'use client';
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import type { Snapshot, SyncMeta, SourceId, ConnectionState, SbBridge } from '@/lib/types';
+import type {
+  Snapshot, SyncMeta, SourceId, ConnectionState, SbBridge,
+  LiftInput, AdminInput, TitrationInput, LabPanelInput,
+} from '@/lib/types';
 import { seedSnapshot } from '@/lib/seed-data';
 
 declare global {
@@ -17,6 +20,10 @@ interface Ctx {
   connectCronometer: (u: string, p: string) => Promise<ConnectionState | void>;
   disconnect: (s: SourceId) => Promise<void>;
   syncNow: (s?: SourceId) => Promise<void>;
+  addSet: (input: LiftInput) => Promise<void>;
+  addAdministration: (input: AdminInput) => Promise<void>;
+  addTitration: (input: TitrationInput) => Promise<void>;
+  addLabPanel: (input: LabPanelInput) => Promise<void>;
 }
 
 const SbContext = createContext<Ctx | null>(null);
@@ -51,6 +58,10 @@ export function Providers({ children }: { children: React.ReactNode }) {
     },
     disconnect: async (s) => { if (window.sb) setSync(await window.sb.disconnect(s)); await refresh(); },
     syncNow: async (s) => { if (window.sb) setSync(await window.sb.syncNow(s)); await refresh(); },
+    addSet: async (input) => { if (window.sb) { const s = await window.sb.addSet(input); setSnapshot(s); setSync(s.syncMeta); } },
+    addAdministration: async (input) => { if (window.sb) { const s = await window.sb.addAdministration(input); setSnapshot(s); setSync(s.syncMeta); } },
+    addTitration: async (input) => { if (window.sb) { const s = await window.sb.addTitration(input); setSnapshot(s); setSync(s.syncMeta); } },
+    addLabPanel: async (input) => { if (window.sb) { const s = await window.sb.addLabPanel(input); setSnapshot(s); setSync(s.syncMeta); } },
   }), [snapshot, sync, isDesktop, refresh]);
 
   return <SbContext.Provider value={value}>{children}</SbContext.Provider>;

@@ -19,6 +19,7 @@ export default function Nutrition() {
         foot={<span className="flag">Last flag — Sodium, today</span>}
         side={<Feed items={nutritionFeed} showTime />}
       >
+        <p className="synced-note">Synced from <span className="flag">Cronometer</span> — link it on the Connections screen (via Apple Health, or the direct login). No manual entry here.</p>
         <div className="block">
           <p className="eyebrow">Daily totals — today</p>
           <table>

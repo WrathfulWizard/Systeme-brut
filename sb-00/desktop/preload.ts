@@ -1,5 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron';
-import type { SbBridge, SyncMeta, SourceId } from '../lib/types';
+import type {
+  SbBridge, SyncMeta, SourceId, LiftInput, AdminInput, TitrationInput, LabPanelInput,
+} from '../lib/types';
 
 /**
  * The only surface the renderer can touch. Everything goes through typed,
@@ -18,6 +20,10 @@ const bridge: SbBridge = {
     ipcRenderer.on('sb:syncUpdate', listener);
     return () => ipcRenderer.removeListener('sb:syncUpdate', listener);
   },
+  addSet: (input: LiftInput) => ipcRenderer.invoke('sb:addSet', input),
+  addAdministration: (input: AdminInput) => ipcRenderer.invoke('sb:addAdministration', input),
+  addTitration: (input: TitrationInput) => ipcRenderer.invoke('sb:addTitration', input),
+  addLabPanel: (input: LabPanelInput) => ipcRenderer.invoke('sb:addLabPanel', input),
 };
 
 contextBridge.exposeInMainWorld('sb', bridge);

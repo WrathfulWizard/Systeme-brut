@@ -2,6 +2,7 @@
 
 import HubFrame from '@/components/HubFrame';
 import { Feed } from '@/components/Feed';
+import { AdminLogForm, TitrationLogForm, LabPanelLogForm } from '@/components/LogForms';
 import { useSnapshot } from '../providers';
 
 export default function Pharmacology() {
@@ -28,6 +29,7 @@ export default function Pharmacology() {
         </div>
 
         <div className="block">
+          <AdminLogForm />
           <p className="eyebrow">Daily administrations</p>
           <table>
             <tbody>
@@ -40,6 +42,7 @@ export default function Pharmacology() {
         </div>
 
         <div className="block">
+          <TitrationLogForm />
           <p className="eyebrow">Titration history</p>
           <table>
             <tbody>
@@ -52,6 +55,7 @@ export default function Pharmacology() {
         </div>
 
         <div className="block">
+          <LabPanelLogForm />
           <p className="eyebrow">Latest panel — lab results</p>
           <table>
             <tbody>

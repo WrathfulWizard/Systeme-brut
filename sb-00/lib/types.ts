@@ -50,7 +50,19 @@ export interface Snapshot {
   minerals: MineralRow[];
   session: { id: string; clock: string };
   syncMeta: SyncMeta;
+  /** lookup lists for the in-app log forms */
+  catalog: { exercises: string[]; compounds: string[] };
 }
+
+/* ---- manual logging inputs (write path) --------------------------------- */
+
+export type SetKind = 'straight' | 'rp1' | 'rp_burst';
+
+export interface LiftInput { date: string; exercise: string; setKind: SetKind; weightKg: number; reps: number; }
+export interface AdminInput { compound: string; doseMg: number; route: string; administeredAt: string; }
+export interface TitrationInput { compound: string; before?: number; after: number; notes?: string; changedAt: string; }
+export interface LabResultInput { marker: string; value: number; unit?: string; low?: number; high?: number; }
+export interface LabPanelInput { drawnAt: string; labName?: string; results: LabResultInput[]; }
 
 /* ---- connections / sync (the desktop-only surface) ---------------------- */
 
@@ -80,4 +92,9 @@ export interface SbBridge {
   disconnect(source: SourceId): Promise<SyncMeta>;
   syncNow(source?: SourceId): Promise<SyncMeta>;
   onSyncUpdate(cb: (meta: SyncMeta) => void): () => void;
+  /* manual logging — each returns a fresh snapshot so the UI updates live */
+  addSet(input: LiftInput): Promise<Snapshot>;
+  addAdministration(input: AdminInput): Promise<Snapshot>;
+  addTitration(input: TitrationInput): Promise<Snapshot>;
+  addLabPanel(input: LabPanelInput): Promise<Snapshot>;
 }

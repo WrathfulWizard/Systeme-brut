@@ -1,4 +1,5 @@
 import { getDb } from './index';
+import { getCatalog } from './mutations';
 import type {
   Snapshot, Insight, NodeGroup, SyncMeta, ConnectionState, SourceId, SourceStatus,
 } from '../../lib/types';
@@ -173,6 +174,7 @@ export function getSnapshot(): Snapshot {
     dailyTotals, calories7d, vitamins, minerals,
     session: { id: 'SB-00', clock: '03:14:09' },
     syncMeta: getSyncMeta(),
+    catalog: getCatalog(),
   };
 }
 

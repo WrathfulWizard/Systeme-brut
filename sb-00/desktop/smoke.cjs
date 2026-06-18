@@ -59,4 +59,23 @@ const n = cron.writeDailyNutrition(days);
 assert.equal(n, 2, 'wrote 2 cronometer days');
 console.log('✓ cronometer csv parse + write  (2 days, source cronometer_direct)');
 
+// --- manual logging (write path) ---
+const mut = require('../dist-electron/desktop/db/mutations.js');
+const beforeSets = getSnapshot().recentSets.length;
+mut.addSet({ date: '2026-06-18', exercise: 'Deadlift', setKind: 'straight', weightKg: 180, reps: 5 });
+mut.addAdministration({ compound: 'HCG', doseMg: 250, route: 'SubQ', administeredAt: '2026-06-18T08:00:00' });
+mut.addTitration({ compound: 'Testosterone Cyp', before: 14, after: 16, notes: 'smoke test', changedAt: '2026-06-18' });
+mut.addLabPanel({ drawnAt: '2026-06-18', labName: 'SmokeLab', results: [
+  { marker: 'TSH', value: 2.1, unit: 'mIU/L', low: 0.4, high: 4.0 },
+  { marker: 'ALT', value: 70, unit: 'U/L', low: 7, high: 55 },
+] });
+snap = getSnapshot();
+assert.ok(snap.catalog.exercises.includes('Deadlift'), 'new exercise added to catalog');
+assert.ok(snap.catalog.compounds.includes('HCG'), 'new compound added to catalog');
+assert.ok(snap.recentSets.find((s) => s.exercise === 'Deadlift'), 'logged set appears in recent sets');
+assert.ok(snap.administrations.find((a) => a.compound === 'HCG'), 'logged dose appears');
+assert.ok(snap.titration.find((t) => t.change === '14mg → 16mg'), 'titration change appears');
+assert.ok(snap.labResults.find((l) => l.marker === 'ALT' && l.flagged), 'new lab panel is latest, ALT flagged');
+console.log('✓ manual logging        (set + dose + titration + lab panel written and reflected)');
+
 console.log('\nALL SMOKE CHECKS PASSED');

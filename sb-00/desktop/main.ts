@@ -7,6 +7,8 @@ import { extname } from 'node:path';
 
 import { openDb } from './db/index';
 import { getSnapshot } from './db/queries';
+import { addSet, addAdministration, addTitration, addLabPanel } from './db/mutations';
+import type { LiftInput, AdminInput, TitrationInput, LabPanelInput } from '../lib/types';
 import { initSecrets, setCronometer } from './ingest/secrets';
 import { startIngestion, stopIngestion, syncNow, disconnect, meta } from './ingest/index';
 import { buildAuthUrl, exchangeCode, syncStrava, STRAVA_REDIRECT_PORT } from './ingest/strava';
@@ -82,6 +84,11 @@ function registerIpc() {
   });
   ipcMain.handle('sb:disconnect', (_e, source: SourceId) => disconnect(source));
   ipcMain.handle('sb:syncNow', (_e, source?: SourceId) => syncNow(source));
+
+  ipcMain.handle('sb:addSet', (_e, input: LiftInput) => { addSet(input); return getSnapshot(); });
+  ipcMain.handle('sb:addAdministration', (_e, input: AdminInput) => { addAdministration(input); return getSnapshot(); });
+  ipcMain.handle('sb:addTitration', (_e, input: TitrationInput) => { addTitration(input); return getSnapshot(); });
+  ipcMain.handle('sb:addLabPanel', (_e, input: LabPanelInput) => { addLabPanel(input); return getSnapshot(); });
 }
 
 async function createWindow() {

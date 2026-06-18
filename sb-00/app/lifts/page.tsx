@@ -3,6 +3,7 @@
 import HubFrame from '@/components/HubFrame';
 import Ascii from '@/components/Ascii';
 import { Feed } from '@/components/Feed';
+import { LiftLogForm } from '@/components/LogForms';
 import { asciiBars } from '@/lib/ascii';
 import { useSnapshot } from '../providers';
 
@@ -20,6 +21,7 @@ export default function Lifts() {
         side={<Feed items={trainingInfo} />}
       >
         <div className="block">
+          <LiftLogForm />
           <p className="eyebrow">Recent sets</p>
           <table>
             <tbody>
