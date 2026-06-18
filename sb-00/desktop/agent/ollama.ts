@@ -66,7 +66,14 @@ export async function agentChat(messages: ChatMessage[], h: StreamHandlers): Pro
     const res = await fetch(`${url}/api/chat`, {
       method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload),
     });
-    if (!res.ok || !res.body) throw new Error(`Ollama chat failed (${res.status})`);
+    if (!res.ok || !res.body) {
+      // Surface Ollama's own message (e.g. "model requires more system memory")
+      // instead of a bare status code — a 500 here is almost always the model
+      // failing to load, and the operator needs to know why.
+      const detail = await res.text().catch(() => '');
+      const parsed = detail && (() => { try { return JSON.parse(detail).error as string; } catch { return ''; } })();
+      throw new Error(`Ollama chat failed (${res.status})${parsed || detail ? ` — ${parsed || detail.slice(0, 300)}` : ''}`);
+    }
 
     const reader = res.body.getReader();
     const dec = new TextDecoder();
