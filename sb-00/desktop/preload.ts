@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron';
 import type {
   SbBridge, SyncMeta, SourceId, LiftInput, AdminInput, TitrationInput, LabPanelInput,
+  ProtocolInput, ChatMessage,
 } from '../lib/types';
 
 /**
@@ -31,6 +32,30 @@ const bridge: SbBridge = {
   addLabPanel: (input: LabPanelInput) => ipcRenderer.invoke('sb:addLabPanel', input),
   deleteLabPanel: (id: number) => ipcRenderer.invoke('sb:deleteLabPanel', id),
   saveStravaApp: (clientId: string, clientSecret: string) => ipcRenderer.invoke('sb:saveStravaApp', clientId, clientSecret),
+  addProtocol: (input: ProtocolInput) => ipcRenderer.invoke('sb:addProtocol', input),
+  titrateProtocol: (id: number, newDoseMg: number, note?: string) => ipcRenderer.invoke('sb:titrateProtocol', id, newDoseMg, note),
+  endProtocol: (id: number) => ipcRenderer.invoke('sb:endProtocol', id),
+  deleteProtocol: (id: number) => ipcRenderer.invoke('sb:deleteProtocol', id),
+  resolveInsight: (id: number) => ipcRenderer.invoke('sb:resolveInsight', id),
+  agentStatus: () => ipcRenderer.invoke('sb:agentStatus'),
+  setAgentModel: (model: string) => ipcRenderer.invoke('sb:setAgentModel', model),
+  agentChat: (messages: ChatMessage[]) => ipcRenderer.invoke('sb:agentChat', messages),
+  agentReview: () => ipcRenderer.invoke('sb:agentReview'),
+  onAgentToken: (cb: (chunk: string) => void) => {
+    const l = (_e: unknown, chunk: string) => cb(chunk);
+    ipcRenderer.on('sb:agentToken', l);
+    return () => ipcRenderer.removeListener('sb:agentToken', l);
+  },
+  onAgentDone: (cb: (full: string) => void) => {
+    const l = (_e: unknown, full: string) => cb(full);
+    ipcRenderer.on('sb:agentDone', l);
+    return () => ipcRenderer.removeListener('sb:agentDone', l);
+  },
+  onAgentError: (cb: (message: string) => void) => {
+    const l = (_e: unknown, m: string) => cb(m);
+    ipcRenderer.on('sb:agentError', l);
+    return () => ipcRenderer.removeListener('sb:agentError', l);
+  },
 };
 
 contextBridge.exposeInMainWorld('sb', bridge);

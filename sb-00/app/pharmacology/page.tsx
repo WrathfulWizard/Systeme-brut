@@ -1,74 +1,84 @@
 'use client';
 
+import { useState, Fragment } from 'react';
 import HubFrame from '@/components/HubFrame';
 import { Feed } from '@/components/Feed';
-import { AdminLogForm, TitrationLogForm, LabPanelLogForm } from '@/components/LogForms';
+import { ProtocolAddForm, TitrateForm, LabPanelLogForm } from '@/components/LogForms';
+import SerumLiquidRender from '@/components/SerumLiquidRender';
+import Ascii from '@/components/Ascii';
+import { asciiBars } from '@/lib/ascii';
 import { useSb } from '../providers';
-import { useState } from 'react';
-import type { AdminRow } from '@/lib/types';
 
 export default function Pharmacology() {
-  const { snapshot, deleteAdministration, deleteTitration, deleteLabPanel, isDesktop } = useSb();
-  const { insights, regimen, administrations, titration, labResults, labPanelId } = snapshot;
+  const { snapshot, endProtocol, deleteProtocol, deleteTitration, deleteLabPanel, resolveInsight, isDesktop } = useSb();
+  const { insights, protocols, titration, labResults, labPanelId, serum7d } = snapshot;
   const pharmFlags = insights.filter((i) => i.nodes.includes('pharmacology'));
-  const [editing, setEditing] = useState<AdminRow | null>(null);
+  const [titrating, setTitrating] = useState<number | null>(null);
+
+  const serumRows = asciiBars(serum7d.map((s) => ({ label: s.day, value: s.mg, display: `${s.mg}mg` })));
+  const peak = serum7d.length ? serum7d.reduce((m, s) => Math.max(m, s.mg), 1) : 1;
+  const pick = (i: number) => serum7d[i] ?? serum7d[serum7d.length - 1] ?? { mg: 0 };
+  const levels = [pick(0), pick(2), pick(4), pick(6)].map((s) => Math.round((s.mg / peak) * 100));
+  const current = serum7d.length ? serum7d[serum7d.length - 1].mg : 0;
 
   return (
     <div className="page">
       <HubFrame
-        status={<>SYNC OK · <span className="flag">{pharmFlags.length} OPEN FLAGS</span></>}
-        foot={<span className="flag">Last flag — ALT, 9 days ago</span>}
-        side={<Feed items={pharmFlags} />}
+        foot={pharmFlags.length ? <span className="flag">{pharmFlags.length} pharma flag{pharmFlags.length === 1 ? '' : 's'}</span> : undefined}
+        side={<Feed items={pharmFlags} onResolve={isDesktop ? resolveInsight : undefined} />}
       >
         <div className="block">
-          <p className="eyebrow">Active regimen</p>
+          <ProtocolAddForm />
+          <p className="eyebrow">Continuous protocol</p>
           <table>
             <tbody>
-              <tr><th>Compound</th><th>Daily dose</th><th>Route</th></tr>
-              {regimen.map((r) => (
-                <tr key={r.compound}><td>{r.compound}</td><td>{r.dose}</td><td>{r.route}</td></tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
-        <div className="block">
-          <AdminLogForm key={editing?.id ?? 'new'} editing={editing} onDone={() => setEditing(null)} />
-          <p className="eyebrow">Daily administrations</p>
-          <table>
-            <tbody>
-              <tr><th>Date</th><th>Compound</th><th>Dose</th><th>Route</th>{isDesktop && <th />}</tr>
-              {administrations.map((a) => (
-                <tr key={a.id} className={editing?.id === a.id ? 'prrow' : undefined}>
-                  <td>{a.date}</td><td>{a.compound}</td><td>{a.dose}</td><td>{a.route}</td>
-                  {isDesktop && (
-                    <td className="rowact">
-                      <button className="rowbtn" onClick={() => setEditing(a)}>edit</button>
-                      <button className="rowbtn del" onClick={() => deleteAdministration(a.id)}>del</button>
-                    </td>
+              <tr><th>Compound</th><th>Daily dose</th><th>Route</th><th>Since</th>{isDesktop && <th />}</tr>
+              {protocols.map((p) => (
+                <Fragment key={p.id}>
+                  <tr>
+                    <td>{p.compound}</td><td>{p.dose}</td><td>{p.route}</td><td>{p.since}</td>
+                    {isDesktop && (
+                      <td className="rowact">
+                        <button className="rowbtn" onClick={() => setTitrating(titrating === p.id ? null : p.id)}>titrate</button>
+                        <button className="rowbtn" onClick={() => endProtocol(p.id)}>end</button>
+                        <button className="rowbtn del" onClick={() => deleteProtocol(p.id)}>del</button>
+                      </td>
+                    )}
+                  </tr>
+                  {titrating === p.id && (
+                    <tr><td colSpan={5} style={{ padding: 0 }}>
+                      <TitrateForm id={p.id} current={p.doseMg} compound={p.compound} onDone={() => setTitrating(null)} />
+                    </td></tr>
                   )}
-                </tr>
+                </Fragment>
               ))}
+              {protocols.length === 0 && <tr><td colSpan={isDesktop ? 5 : 4}>No active protocol. Add a compound to begin.</td></tr>}
             </tbody>
           </table>
         </div>
 
         <div className="block">
-          <TitrationLogForm />
+          <p className="eyebrow">Estimated serum — testosterone, 7d</p>
+          <div className="liquid-card">
+            <span className="tag">Visual readout</span>
+            <SerumLiquidRender levels={levels} />
+            <div className="read">{current}<span className="v">mg, current</span></div>
+          </div>
+          <Ascii rows={serumRows} />
+        </div>
+
+        <div className="block">
           <p className="eyebrow">Titration history</p>
           <table>
             <tbody>
               <tr><th>Date</th><th>Compound</th><th>Change</th><th>Trigger</th>{isDesktop && <th />}</tr>
               {titration.map((t) => (
                 <tr key={t.id}>
-                  <td>{t.date}</td><td>{t.compound}</td><td>{t.change}</td><td>{t.trigger}</td>
-                  {isDesktop && (
-                    <td className="rowact">
-                      <button className="rowbtn del" onClick={() => deleteTitration(t.id)}>del</button>
-                    </td>
-                  )}
+                  <td>{t.date}</td><td>{t.compound}</td><td><b className="flag">{t.change}</b></td><td>{t.trigger}</td>
+                  {isDesktop && <td className="rowact"><button className="rowbtn del" onClick={() => deleteTitration(t.id)}>del</button></td>}
                 </tr>
               ))}
+              {titration.length === 0 && <tr><td colSpan={isDesktop ? 5 : 4}>No changes logged. Titrating a protocol records the change here.</td></tr>}
             </tbody>
           </table>
         </div>
@@ -86,8 +96,7 @@ export default function Pharmacology() {
               <tr><th>Marker</th><th>Value</th><th>Range</th><th>Status</th></tr>
               {labResults.map((l) => (
                 <tr key={l.marker} className={l.flagged ? 'flagrow' : undefined}>
-                  <td>{l.marker}</td><td>{l.value}</td><td>{l.range}</td>
-                  <td>{l.flagged ? 'FLAGGED' : '—'}</td>
+                  <td>{l.marker}</td><td>{l.value}</td><td>{l.range}</td><td>{l.flagged ? 'FLAGGED' : '—'}</td>
                 </tr>
               ))}
             </tbody>

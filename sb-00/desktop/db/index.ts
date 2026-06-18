@@ -27,7 +27,48 @@ export function openDb(dbPath: string): Database.Database {
     );
     for (const s of ['strava', 'cronometer', 'apple_health']) ins.run(s);
   }
+  migrate(db);
   return db;
+}
+
+/** Idempotent migrations for DBs created before a feature landed. */
+function migrate(db: Database.Database) {
+  // cardio_sessions.sport (multi-sport: run / ride / swim)
+  const cols = db.prepare('PRAGMA table_info(cardio_sessions)').all() as { name: string }[];
+  if (!cols.some((c) => c.name === 'sport')) {
+    db.exec("ALTER TABLE cardio_sessions ADD COLUMN sport TEXT NOT NULL DEFAULT 'run'");
+  }
+
+  // Backfill a continuous protocol from each compound's latest dose.
+  const protoCount = (db.prepare('SELECT COUNT(*) AS n FROM protocols').get() as { n: number }).n;
+  if (protoCount === 0) {
+    const rows = db.prepare(`
+      SELECT a.compound_id AS cid, a.dose_mg AS dose, a.route AS route
+      FROM administrations a
+      WHERE a.administered_at = (SELECT MAX(administered_at) FROM administrations a2 WHERE a2.compound_id = a.compound_id)
+      GROUP BY a.compound_id
+    `).all() as { cid: number; dose: number; route: string }[];
+    const ins = db.prepare(
+      "INSERT INTO protocols (compound_id, daily_dose_mg, route, started_at, active) VALUES (?,?,?,date('now'),1)",
+    );
+    for (const r of rows) ins.run(r.cid, r.dose, r.route);
+  }
+
+  // Default agent settings.
+  const setIns = db.prepare('INSERT OR IGNORE INTO settings(key, value) VALUES (?, ?)');
+  setIns.run('agent_provider', 'ollama');
+  setIns.run('agent_url', 'http://127.0.0.1:11434');
+  setIns.run('agent_model', '');
+
+  // Weight goal + a seed bodyweight if none exist yet.
+  const hasWeightGoal = db.prepare("SELECT 1 FROM goals WHERE metric='body_mass' LIMIT 1").get();
+  if (!hasWeightGoal) {
+    db.prepare("INSERT INTO goals (node, metric, target_value, unit, status, notes) VALUES ('nutrition','body_mass',86,'kg','active','Lean recomp target')").run();
+  }
+  const hasWeight = db.prepare("SELECT 1 FROM wearable_readings WHERE metric='body_mass' LIMIT 1").get();
+  if (!hasWeight) {
+    db.prepare("INSERT OR IGNORE INTO wearable_readings (measured_at, metric, value, unit, device_source) VALUES (datetime('now'),'body_mass',89.4,'kg','manual')").run();
+  }
 }
 
 export function getDb(): Database.Database {

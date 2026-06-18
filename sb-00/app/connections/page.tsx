@@ -20,7 +20,7 @@ function dot(status: ConnectionState['status']) {
 }
 
 export default function Connections() {
-  const { sync, isDesktop, connectStrava, connectCronometer, disconnect, syncNow, saveStravaApp } = useSb();
+  const { sync, isDesktop, connectStrava, connectCronometer, disconnect, syncNow, saveStravaApp, agent, refreshAgent, setAgentModel } = useSb();
   const [cronUser, setCronUser] = useState('');
   const [cronPass, setCronPass] = useState('');
   const [stravaId, setStravaId] = useState('');
@@ -118,6 +118,30 @@ export default function Connections() {
             </div>
           );
         })}
+
+        {/* SB-Σ — local AI brain (Ollama) */}
+        <div className="block" style={{ paddingBottom: 16 }}>
+          <p className="eyebrow" style={{ marginBottom: 6 }}>
+            {dot(agent?.reachable ? 'connected' : 'disconnected')}SB-Σ — Local AI (Ollama)
+            <span style={{ color: 'var(--dim)', fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>
+              {'  '}— {agent?.reachable ? `running · ${agent.models.length} model${agent.models.length === 1 ? '' : 's'}` : 'offline'}
+            </span>
+          </p>
+          <p className="mono" style={{ fontSize: 11.5, color: 'var(--dim)', margin: '0 0 12px', lineHeight: 1.6 }}>
+            Private — runs on this machine, nothing leaves it. Install from ollama.com, then <span style={{ color: 'var(--text)' }}>ollama pull llama3.1</span>.
+          </p>
+          {agent?.reachable && agent.models.length > 0 ? (
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+              <span className="mono" style={{ fontSize: 11, color: 'var(--dim)' }}>Model</span>
+              <select className="fld" value={agent.model} onChange={(e) => setAgentModel(e.target.value)}>
+                {agent.models.map((m) => <option key={m} value={m}>{m}</option>)}
+              </select>
+              <button className="btn" onClick={() => refreshAgent()}>Re-check</button>
+            </div>
+          ) : (
+            <button className="btn" disabled={!isDesktop} onClick={() => refreshAgent()}>Re-check</button>
+          )}
+        </div>
       </HubFrame>
 
       <style>{`

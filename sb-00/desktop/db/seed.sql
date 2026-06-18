@@ -90,3 +90,22 @@ INSERT INTO insights (created_at, severity, body, node_refs) VALUES
 
 INSERT INTO connections (source, status) VALUES
   ('strava','disconnected'),('cronometer','disconnected'),('apple_health','disconnected');
+
+-- Continuous protocol (replaces ad-hoc daily dose logging)
+INSERT INTO protocols (compound_id, daily_dose_mg, route, started_at, active, note) VALUES
+  (1,14,'IM','2026-05-01',1,'TRT base, micro-dosed daily'),
+  (2,20,'oral','2026-05-20',1,'8-week oral run');
+
+-- Bodyweight trend + weight goal (for the Substrate node + the goal corner)
+INSERT INTO goals (node, metric, target_value, unit, target_date, status, notes) VALUES
+  ('nutrition','body_mass',86,'kg','2026-08-01','active','Lean recomp target');
+INSERT INTO wearable_readings (measured_at, metric, value, unit, device_source) VALUES
+  ('2026-06-11T06:30:00','body_mass',90.4,'kg','manual'),
+  ('2026-06-13T06:30:00','body_mass',90.1,'kg','manual'),
+  ('2026-06-15T06:30:00','body_mass',89.7,'kg','manual'),
+  ('2026-06-17T06:30:00','body_mass',89.4,'kg','manual');
+
+INSERT INTO settings (key, value) VALUES
+  ('agent_provider','ollama'),
+  ('agent_url','http://127.0.0.1:11434'),
+  ('agent_model','');

@@ -40,14 +40,19 @@ export const seedSnapshot: Snapshot = {
     { date: '06.13', distance: 6.0 }, { date: '06.16', distance: 7.2 },
   ],
   recentRuns: [
-    { date: '06.16', distance: '7.2km', pace: '5:42/km', source: 'Strava' },
-    { date: '06.13', distance: '6.0km', pace: '5:55/km', source: 'Strava' },
-    { date: '06.10', distance: '5.5km', pace: '6:01/km', source: 'Strava' },
-    { date: '06.06', distance: '5.0km', pace: '6:10/km', source: 'Strava' },
+    { date: '06.16', distance: '7.2km', pace: '5:42/km', source: 'Strava', sport: 'run' },
+    { date: '06.14', distance: '32.0km', pace: '28.4 km/h', source: 'Strava', sport: 'ride' },
+    { date: '06.13', distance: '6.0km', pace: '5:55/km', source: 'Strava', sport: 'run' },
+    { date: '06.11', distance: '1.5km', pace: '1:58/100m', source: 'Strava', sport: 'swim' },
   ],
-  regimen: [
-    { compound: 'Testosterone Cyp', dose: '~14mg/day (micro)', route: 'IM' },
-    { compound: 'Anavar', dose: '20mg/day', route: 'Oral' },
+  cardioBySport: [
+    { sport: 'run', count: 4, distanceKm: 23.7 },
+    { sport: 'ride', count: 1, distanceKm: 32.0 },
+    { sport: 'swim', count: 1, distanceKm: 1.5 },
+  ],
+  protocols: [
+    { id: 1, compound: 'Testosterone Cyp', dose: '14mg daily', route: 'IM', doseMg: 14, route_raw: 'IM', since: '05.01' },
+    { id: 2, compound: 'Anavar', dose: '20mg daily', route: 'Oral', doseMg: 20, route_raw: 'oral', since: '05.20' },
   ],
   administrations: [
     { id: 1, date: '06.17', compound: 'Testosterone Cyp', dose: '14mg', route: 'IM', iso: '2026-06-17', doseMg: 14, routeRaw: 'IM' },
@@ -94,6 +99,10 @@ export const seedSnapshot: Snapshot = {
     { mineral: 'Calcium', amount: '980 mg', target: '1000 mg', flagged: false },
     { mineral: 'Chloride', amount: '2700 mg', target: '2300 mg', flagged: false },
   ],
+  weightGoal: {
+    current: 89.4, target: 86, unit: 'kg',
+    trend: [{ day: '06.11', kg: 90.4 }, { day: '06.13', kg: 90.1 }, { day: '06.15', kg: 89.7 }, { day: '06.17', kg: 89.4 }],
+  },
   session: { id: 'SB-00', clock: '03:14:09' },
   syncMeta: { connections: [
     { source: 'strava', status: 'disconnected' },

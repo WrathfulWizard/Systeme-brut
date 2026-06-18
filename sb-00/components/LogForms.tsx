@@ -112,6 +112,72 @@ export function AdminLogForm({ editing, onDone }: { editing?: AdminRow | null; o
   return <><Toggle open={open} onClick={() => setOpen((v) => !v)} label="Log dose" />{open && body}</>;
 }
 
+/* ---- Pharmacology: start a continuous protocol -------------------------- */
+export function ProtocolAddForm() {
+  const { snapshot, addProtocol, isDesktop } = useSb();
+  const [open, setOpen] = useState(false);
+  const [compound, setCompound] = useState('');
+  const [dose, setDose] = useState('');
+  const [route, setRoute] = useState('IM');
+  const [note, setNote] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  if (!isDesktop) return <DesktopNote />;
+  const valid = !!compound.trim() && Number(dose) > 0;
+  const submit = async () => {
+    setBusy(true);
+    try {
+      await addProtocol({ compound: compound.trim(), doseMg: Number(dose), route, note: note.trim() || undefined });
+      setCompound(''); setDose(''); setNote(''); setOpen(false);
+    } finally { setBusy(false); }
+  };
+
+  return (
+    <>
+      <Toggle open={open} onClick={() => setOpen((v) => !v)} label="Add compound" />
+      {open && (
+        <div className="logform">
+          <div className="field"><label>Compound</label>
+            <input className="fld" list="compound-list" placeholder="Deca" value={compound} onChange={(e) => setCompound(e.target.value)} />
+            <datalist id="compound-list">{snapshot.catalog.compounds.map((x) => <option key={x} value={x} />)}</datalist>
+          </div>
+          <div className="field"><label>Daily dose (mg)</label>
+            <input className="fld w-narrow" type="number" inputMode="decimal" value={dose} onChange={(e) => setDose(e.target.value)} /></div>
+          <div className="field"><label>Route</label>
+            <select className="fld" value={route} onChange={(e) => setRoute(e.target.value)}>
+              <option>IM</option><option>SubQ</option><option value="oral">Oral</option></select></div>
+          <div className="field" style={{ flex: 1 }}><label>Note</label>
+            <input className="fld" style={{ width: '100%' }} value={note} onChange={(e) => setNote(e.target.value)} /></div>
+          <button className="btn primary" disabled={!valid || busy} onClick={submit}>{busy ? 'Saving…' : 'Start protocol'}</button>
+        </div>
+      )}
+    </>
+  );
+}
+
+/* ---- Pharmacology: in-line titrate (change a running protocol's dose) ---- */
+export function TitrateForm({ id, current, compound, onDone }: { id: number; current: number; compound: string; onDone: () => void }) {
+  const { titrateProtocol } = useSb();
+  const [dose, setDose] = useState(String(current));
+  const [note, setNote] = useState('');
+  const [busy, setBusy] = useState(false);
+  const valid = Number(dose) > 0 && Number(dose) !== current;
+  return (
+    <div className="logform" style={{ marginTop: 8 }}>
+      <p className="editing-banner" style={{ width: '100%' }}>Titrate {compound} — {current}mg → ?</p>
+      <div className="field"><label>New daily dose (mg)</label>
+        <input className="fld w-narrow" type="number" inputMode="decimal" value={dose} onChange={(e) => setDose(e.target.value)} autoFocus /></div>
+      <div className="field" style={{ flex: 1 }}><label>Note (trigger)</label>
+        <input className="fld" style={{ width: '100%' }} placeholder="e.g. trough low, labs clean" value={note} onChange={(e) => setNote(e.target.value)} /></div>
+      <button className="btn primary" disabled={!valid || busy}
+        onClick={async () => { setBusy(true); try { await titrateProtocol(id, Number(dose), note.trim() || undefined); onDone(); } finally { setBusy(false); } }}>
+        {busy ? 'Saving…' : 'Apply titration'}
+      </button>
+      <button className="btn" disabled={busy} onClick={onDone}>Cancel</button>
+    </div>
+  );
+}
+
 /* ---- Pharmacology: titration change ------------------------------------- */
 export function TitrationLogForm() {
   const { snapshot, addTitration, isDesktop } = useSb();

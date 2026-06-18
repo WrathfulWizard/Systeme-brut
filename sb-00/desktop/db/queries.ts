@@ -21,8 +21,17 @@ const hm = (iso: string) => {
   const d = new Date(iso);
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 };
-const paceStr = (secPerKm?: number) =>
-  secPerKm ? `${Math.floor(secPerKm / 60)}:${String(secPerKm % 60).padStart(2, '0')}/km` : '—';
+const hms = (sec: number) => {
+  const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s = Math.floor(sec % 60);
+  return h ? `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}` : `${m}:${String(s).padStart(2, '0')}`;
+};
+// pace is sport-relative: run = min/km, swim = min/100m, ride = km/h
+const paceStr = (secPerKm?: number, sport = 'run') => {
+  if (!secPerKm) return '—';
+  if (sport === 'ride') return `${(3600 / secPerKm).toFixed(1)} km/h`;
+  if (sport === 'swim') { const per100 = secPerKm / 10; return `${Math.floor(per100 / 60)}:${String(Math.round(per100 % 60)).padStart(2, '0')}/100m`; }
+  return `${Math.floor(secPerKm / 60)}:${String(secPerKm % 60).padStart(2, '0')}/km`;
+};
 
 const NODE_OF: Record<string, NodeGroup> = {
   sets: 'training', cardio_sessions: 'training',
@@ -92,26 +101,33 @@ export function getSnapshot(): Snapshot {
     "SELECT target_value AS target, unit FROM goals WHERE node='training' AND metric='distance_km' AND status='active' LIMIT 1",
   ).get() as { target: number; unit: string } | undefined;
   const cardio = db.prepare(
-    'SELECT occurred_at AS at, distance_km AS km, pace_avg_sec_per_km AS pace, source FROM cardio_sessions ORDER BY occurred_at DESC LIMIT 8',
-  ).all() as { at: string; km: number; pace?: number; source: string }[];
+    "SELECT occurred_at AS at, distance_km AS km, pace_avg_sec_per_km AS pace, duration_sec AS dur, COALESCE(sport,'run') AS sport, source FROM cardio_sessions ORDER BY occurred_at DESC LIMIT 8",
+  ).all() as { at: string; km: number; pace?: number; dur?: number; sport: string; source: string }[];
   const longest = cardio.reduce((m, r) => Math.max(m, r.km), 0);
   const cardioGoal = { metric: 'distance_km', target: goalRow?.target ?? 10, longest, unit: goalRow?.unit ?? 'km' };
   const cardioProgression = [...cardio].reverse().map((r) => ({ date: md(r.at), distance: r.km }));
   const recentRuns = cardio.map((r) => ({
-    date: md(r.at), distance: `${r.km.toFixed(1)}km`, pace: paceStr(r.pace),
-    source: r.source === 'strava' ? 'Strava' : r.source,
+    date: md(r.at), distance: `${r.km.toFixed(1)}km`, pace: paceStr(r.pace, r.sport),
+    source: r.source === 'strava' ? 'Strava' : r.source, sport: (r.sport ?? 'run') as 'run' | 'ride' | 'swim',
+    duration: r.dur ? hms(r.dur) : undefined,
   }));
+  const cardioBySport = (db.prepare(
+    "SELECT COALESCE(sport,'run') AS sport, COUNT(*) AS n, COALESCE(SUM(distance_km),0) AS km FROM cardio_sessions GROUP BY COALESCE(sport,'run')",
+  ).all() as { sport: string; n: number; km: number }[])
+    .map((r) => ({ sport: r.sport as 'run' | 'ride' | 'swim', count: r.n, distanceKm: Math.round(r.km * 10) / 10 }));
 
-  // pharmacology
+  // pharmacology — continuous protocols
   const compounds = db.prepare('SELECT id, name, half_life_hours AS hl FROM compounds').all() as
     { id: number; name: string; hl: number }[];
-  const regimen = (db.prepare(`
-    SELECT c.name AS compound, a.dose_mg AS dose, a.route AS route
-    FROM administrations a JOIN compounds c ON c.id = a.compound_id
-    WHERE a.administered_at = (SELECT MAX(administered_at) FROM administrations a2 WHERE a2.compound_id = a.compound_id)
-    GROUP BY a.compound_id ORDER BY c.id
-  `).all() as { compound: string; dose: number; route: string }[])
-    .map((r) => ({ compound: r.compound, dose: `${r.dose}mg/day`, route: r.route === 'oral' ? 'Oral' : r.route }));
+  const protocols = (db.prepare(`
+    SELECT p.id AS id, c.name AS compound, p.daily_dose_mg AS dose, p.route AS route, p.started_at AS since
+    FROM protocols p JOIN compounds c ON c.id = p.compound_id
+    WHERE p.active = 1 ORDER BY c.id
+  `).all() as { id: number; compound: string; dose: number; route: string; since: string }[])
+    .map((r) => ({
+      id: r.id, compound: r.compound, dose: `${r.dose}mg daily`,
+      route: r.route === 'oral' ? 'Oral' : r.route, doseMg: r.dose, route_raw: r.route, since: md(r.since),
+    }));
 
   const administrations = (db.prepare(`
     SELECT a.id AS id, a.administered_at AS at, c.name AS compound, a.dose_mg AS dose, a.route AS route
@@ -179,10 +195,20 @@ export function getSnapshot(): Snapshot {
     };
   });
 
+  // bodyweight goal + trend
+  const wGoal = db.prepare("SELECT target_value AS target, unit FROM goals WHERE metric='body_mass' AND status='active' LIMIT 1").get() as { target: number; unit: string } | undefined;
+  const wRows = (db.prepare("SELECT measured_at AS at, value AS kg FROM wearable_readings WHERE metric='body_mass' ORDER BY measured_at DESC LIMIT 10").all() as { at: string; kg: number }[]);
+  const weightGoal = {
+    current: wRows[0]?.kg,
+    target: wGoal?.target ?? 0,
+    unit: wGoal?.unit ?? 'kg',
+    trend: [...wRows].reverse().map((r) => ({ day: md(r.at), kg: r.kg })),
+  };
+
   return {
-    insights, recentSets, prLog, tonnage, cardioGoal, cardioProgression, recentRuns,
-    regimen, administrations, titration, labResults, serum7d,
-    dailyTotals, calories7d, vitamins, minerals,
+    insights, recentSets, prLog, tonnage, cardioGoal, cardioProgression, recentRuns, cardioBySport,
+    protocols, administrations, titration, labResults, serum7d,
+    dailyTotals, calories7d, vitamins, minerals, weightGoal,
     session: { id: 'SB-00', clock: '03:14:09' },
     syncMeta: getSyncMeta(),
     catalog: getCatalog(),
@@ -190,24 +216,67 @@ export function getSnapshot(): Snapshot {
   };
 }
 
+/**
+ * Estimate serum from the continuous protocol: reconstruct the daily dose for
+ * each day (protocol start dose, stepped by each titration), then sum the
+ * exponential decay of every day's dose. Falls back to legacy administrations
+ * if no protocol exists yet.
+ */
 function estimateSerum7d(compoundId: number | undefined, halfLifeDays: number) {
   const db = getDb();
   if (!compoundId) return [];
-  const admins = db.prepare(
-    'SELECT administered_at AS at, dose_mg AS dose FROM administrations WHERE compound_id = ?',
-  ).all(compoundId) as { at: string; dose: number }[];
-  if (admins.length === 0) return [];
 
-  const anchor = admins.reduce((m, a) => Math.max(m, new Date(a.at).getTime()), 0);
+  const proto = db.prepare(
+    'SELECT daily_dose_mg AS dose, started_at AS since FROM protocols WHERE compound_id = ? AND active = 1 ORDER BY started_at LIMIT 1',
+  ).get(compoundId) as { dose: number; since: string } | undefined;
+
+  const dayMsOf = (s: string) => new Date(s.slice(0, 10) + 'T00:00:00').getTime();
+  let timeline: { t: number; dose: number }[] = [];
+
+  if (proto) {
+    const tits = db.prepare(
+      'SELECT changed_at AS at, dose_before_mg AS before, dose_after_mg AS after FROM titration_log WHERE compound_id = ? ORDER BY changed_at',
+    ).all(compoundId) as { at: string; before: number; after: number }[];
+    const initial = tits.length ? (tits[0].before ?? proto.dose) : proto.dose;
+    timeline.push({ t: dayMsOf(proto.since), dose: initial });
+    for (const tt of tits) timeline.push({ t: dayMsOf(tt.at), dose: tt.after });
+  } else {
+    const admins = db.prepare(
+      'SELECT administered_at AS at, dose_mg AS dose FROM administrations WHERE compound_id = ?',
+    ).all(compoundId) as { at: string; dose: number }[];
+    if (admins.length === 0) return [];
+    // legacy: discrete doses
+    const anchor = admins.reduce((m, a) => Math.max(m, dayMsOf(a.at)), 0);
+    const out: { day: string; mg: number }[] = [];
+    for (let i = 6; i >= 0; i--) {
+      const dayMs = anchor - i * 86400_000;
+      let mg = 0;
+      for (const a of admins) { const e = (dayMs - dayMsOf(a.at)) / 86400_000; if (e >= 0) mg += a.dose * Math.pow(0.5, e / halfLifeDays); }
+      out.push({ day: weekday(new Date(dayMs).toISOString()), mg: Math.round(mg) });
+    }
+    return out;
+  }
+
+  timeline = timeline.sort((a, b) => a.t - b.t);
+  const doseOnDay = (t: number) => {
+    let dose = 0;
+    for (const p of timeline) { if (p.t <= t) dose = p.dose; else break; }
+    return dose;
+  };
+
+  const start = timeline[0].t;
+  const todayMs = dayMsOf(new Date().toISOString());
+  const anchor = Math.max(todayMs, timeline[timeline.length - 1].t);
+
   const out: { day: string; mg: number }[] = [];
   for (let i = 6; i >= 0; i--) {
-    const dayMs = anchor - i * 86400_000;
+    const D = anchor - i * 86400_000;
     let mg = 0;
-    for (const a of admins) {
-      const elapsed = (dayMs - new Date(a.at).getTime()) / 86400_000;
-      if (elapsed >= 0) mg += a.dose * Math.pow(0.5, elapsed / halfLifeDays);
+    for (let d = start; d <= D; d += 86400_000) {
+      const dose = doseOnDay(d);
+      if (dose > 0) mg += dose * Math.pow(0.5, (D - d) / 86400_000 / halfLifeDays);
     }
-    out.push({ day: weekday(new Date(dayMs).toISOString()), mg: Math.round(mg) });
+    out.push({ day: weekday(new Date(D).toISOString()), mg: Math.round(mg) });
   }
   return out;
 }

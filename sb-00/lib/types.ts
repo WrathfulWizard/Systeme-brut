@@ -6,6 +6,7 @@
 
 export type Severity = 'info' | 'flag';
 export type NodeGroup = 'training' | 'pharmacology' | 'nutrition';
+export type Sport = 'run' | 'ride' | 'swim';
 
 export interface Insight {
   id: number;
@@ -23,8 +24,9 @@ export interface SetRow {
 export interface PrRow { exercise: string; prVolume: number; lastBeat: string; status: string; }
 export interface Bar { lift: string; value: number; }
 export interface CardioPoint { date: string; distance: number; }
-export interface RunRow { date: string; distance: string; pace: string; source: string; }
-export interface RegimenRow { compound: string; dose: string; route: string; }
+export interface RunRow { date: string; distance: string; pace: string; source: string; sport: Sport; duration?: string; }
+/** A continuous compound protocol — current daily dose, titrated over time. */
+export interface ProtocolRow { id: number; compound: string; dose: string; route: string; doseMg: number; route_raw: string; since: string; }
 export interface AdminRow {
   id: number; date: string; compound: string; dose: string; route: string;
   iso: string; doseMg: number; routeRaw: string;
@@ -46,7 +48,8 @@ export interface Snapshot {
   cardioGoal: { metric: string; target: number; longest: number; unit: string };
   cardioProgression: CardioPoint[];
   recentRuns: RunRow[];
-  regimen: RegimenRow[];
+  cardioBySport: { sport: Sport; count: number; distanceKm: number }[];
+  protocols: ProtocolRow[];
   administrations: AdminRow[];
   titration: TitrationRow[];
   labResults: LabResult[];
@@ -55,6 +58,8 @@ export interface Snapshot {
   calories7d: CaloriePoint[];
   vitamins: VitaminRow[];
   minerals: MineralRow[];
+  /** bodyweight goal + latest reading + trend (Substrate node + goal corner) */
+  weightGoal: { current?: number; target: number; unit: string; trend: { day: string; kg: number }[] };
   session: { id: string; clock: string };
   syncMeta: SyncMeta;
   /** lookup lists for the in-app log forms */
@@ -72,6 +77,18 @@ export interface AdminInput { compound: string; doseMg: number; route: string; a
 export interface TitrationInput { compound: string; before?: number; after: number; notes?: string; changedAt: string; }
 export interface LabResultInput { marker: string; value: number; unit?: string; low?: number; high?: number; }
 export interface LabPanelInput { drawnAt: string; labName?: string; results: LabResultInput[]; }
+export interface ProtocolInput { compound: string; doseMg: number; route: string; note?: string; }
+
+/* ---- SB-Σ agent --------------------------------------------------------- */
+export interface ChatMessage { role: 'user' | 'assistant' | 'system'; content: string; }
+export interface AgentStatus {
+  provider: 'ollama';
+  url: string;
+  reachable: boolean;
+  models: string[];   // installed Ollama models
+  model: string;      // selected
+  error?: string;
+}
 
 /* ---- connections / sync (the desktop-only surface) ---------------------- */
 
@@ -90,6 +107,7 @@ export interface SyncMeta {
   /** receiver endpoint the Apple Health bridge posts to, e.g. http://localhost:8787/ingest/health */
   healthEndpoint?: string;
   connections: ConnectionState[];
+  agent?: AgentStatus;
 }
 
 /** The API exposed on window.sb by the Electron preload bridge. */
@@ -113,6 +131,21 @@ export interface SbBridge {
   deleteTitration(id: number): Promise<Snapshot>;
   addLabPanel(input: LabPanelInput): Promise<Snapshot>;
   deleteLabPanel(id: number): Promise<Snapshot>;
+  /* pharmacology protocol */
+  addProtocol(input: ProtocolInput): Promise<Snapshot>;
+  titrateProtocol(id: number, newDoseMg: number, note?: string): Promise<Snapshot>;
+  endProtocol(id: number): Promise<Snapshot>;
+  deleteProtocol(id: number): Promise<Snapshot>;
+  /* flags (SB-Σ) */
+  resolveInsight(id: number): Promise<Snapshot>;
   /* strava app credentials (so connecting needs no env vars) */
   saveStravaApp(clientId: string, clientSecret: string): Promise<SyncMeta>;
+  /* SB-Σ local agent (Ollama) */
+  agentStatus(): Promise<AgentStatus>;
+  setAgentModel(model: string): Promise<AgentStatus>;
+  agentChat(messages: ChatMessage[]): Promise<void>;          // streams via events
+  agentReview(): Promise<void>;                               // proactive once-over, streams
+  onAgentToken(cb: (chunk: string) => void): () => void;
+  onAgentDone(cb: (full: string) => void): () => void;
+  onAgentError(cb: (message: string) => void): () => void;
 }

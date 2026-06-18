@@ -160,3 +160,25 @@ CREATE TABLE IF NOT EXISTS connections (
   last_sync_at TEXT,
   cursor TEXT                              -- per-source pagination/high-water mark
 );
+
+-- ---- Node B (reworked): continuous compound protocol --------------------
+-- A protocol is a compound run continuously at a current daily dose. Changing
+-- the dose ("titrate") updates daily_dose_mg and appends a titration_log row.
+CREATE TABLE IF NOT EXISTS protocols (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  compound_id INTEGER NOT NULL REFERENCES compounds(id),
+  daily_dose_mg REAL NOT NULL,
+  route TEXT,
+  started_at TEXT NOT NULL,
+  active INTEGER NOT NULL DEFAULT 1,
+  note TEXT
+);
+
+-- ---- key/value settings (agent model, base url, etc.) -------------------
+CREATE TABLE IF NOT EXISTS settings (
+  key TEXT PRIMARY KEY,
+  value TEXT
+);
+
+-- ---- cardio sport tag (added for multi-sport: run/ride/swim) ------------
+-- (column added defensively via migration in index.ts for existing DBs)

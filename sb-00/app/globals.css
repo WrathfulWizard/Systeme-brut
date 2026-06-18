@@ -265,3 +265,86 @@ tr.prrow td:last-child { font-weight: 700; color: var(--text); }
   text-transform: uppercase;
   margin: 0 0 8px;
 }
+
+/* ---- functional corner readouts (HubFrame) ------------------------------ */
+.hub.frame { padding-bottom: 40px; }
+.cnr {
+  position: absolute;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  line-height: 1.55;
+  letter-spacing: 0.03em;
+  color: var(--dim);
+  z-index: 3;
+}
+.cnr b { color: var(--text); font-weight: 600; }
+.cnr .ok { color: #3ad07a; }
+.cnr .bad { color: var(--mag); }
+.cnr.tr { top: 7px; right: 12px; text-align: right; }
+.cnr.bl { left: 12px; bottom: 9px; }
+.cnr.br { right: 12px; bottom: 9px; text-align: right; }
+.cnr a { color: inherit; }
+.cnr a:hover { color: var(--text); }
+.flagchip { color: var(--mag); cursor: pointer; }
+.flagchip.zero { color: var(--dim); }
+.bar-mini {
+  display: inline-block; width: 54px; height: 4px; background: var(--line-soft);
+  vertical-align: middle; margin-left: 4px; position: relative;
+}
+.bar-mini > i { position: absolute; left: 0; top: 0; bottom: 0; background: var(--text); }
+
+/* ---- SB-Σ chat ---------------------------------------------------------- */
+.sigma { display: flex; flex-direction: column; height: calc(100vh - 230px); min-height: 420px; }
+.sigma-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.sigma-head .title { font-family: var(--font-cap); font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; font-size: 14px; }
+.sigma-head .meta { font-family: var(--font-mono); font-size: 10px; color: var(--dim); }
+.sigma-head .meta .ok { color: #3ad07a; }
+.sigma-head .meta .bad { color: var(--mag); }
+
+.chat { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 14px; padding: 6px 2px 14px; }
+.msg { max-width: 80%; font-size: 13px; line-height: 1.6; white-space: pre-wrap; }
+.msg.user { align-self: flex-end; border: 1px solid var(--line); padding: 9px 12px; color: var(--text); }
+.msg.sigma { align-self: flex-start; border-left: 2px solid var(--mag); padding: 2px 0 2px 12px; color: var(--text); }
+.msg .who { font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--dim); display: block; margin-bottom: 4px; }
+.msg.sigma.streaming::after { content: '▋'; color: var(--mag); animation: blink 1s steps(2) infinite; }
+@keyframes blink { 0%,50% { opacity: 1; } 50.01%,100% { opacity: 0; } }
+
+.chat-empty { color: var(--dim); font-family: var(--font-mono); font-size: 12px; line-height: 1.7; }
+.chat-empty .prompts { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+
+.composer { display: flex; gap: 8px; border-top: 1px solid var(--line-soft); padding-top: 12px; }
+.composer textarea {
+  flex: 1; resize: none; background: #070708; border: 1px solid var(--line); color: var(--text);
+  font-family: var(--font-mono); font-size: 12.5px; padding: 10px; min-height: 44px; max-height: 140px; line-height: 1.5;
+}
+.composer textarea:focus { outline: none; border-color: var(--text); }
+
+.agent-setup { border: 1px solid var(--line); padding: 16px; font-family: var(--font-mono); font-size: 12px; line-height: 1.7; color: var(--dim); }
+.agent-setup b { color: var(--text); }
+.agent-setup code { background: var(--line-soft); padding: 1px 5px; color: var(--text); }
+
+/* ---- serum readout CSS fallback (no WebGL) ------------------------------ */
+.serum-fallback { position: absolute; inset: 0; overflow: hidden; background:
+  radial-gradient(120% 90% at 50% 120%, rgba(224,21,122,0.10), transparent 60%), #070708; }
+.serum-fallback-blob {
+  position: absolute; left: 50%; top: 58%; width: 150px; height: 150px; transform: translate(-50%,-50%);
+  border-radius: 46% 54% 52% 48% / 50% 46% 54% 50%;
+  background: radial-gradient(circle at 38% 34%, rgba(120,150,235,0.95), rgba(54,86,196,0.55) 46%, rgba(40,60,150,0.15) 70%, transparent 78%);
+  filter: blur(2px);
+  opacity: calc(0.35 + var(--lvl, 0.5) * 0.6);
+  scale: calc(0.6 + var(--lvl, 0.5) * 0.7);
+  animation: serum-morph 7s ease-in-out infinite;
+}
+.serum-fallback-blob.b2 {
+  background: radial-gradient(circle at 60% 40%, rgba(224,180,60,0.5), rgba(180,120,30,0.2) 55%, transparent 72%);
+  width: 96px; height: 96px; left: 58%; top: 48%; animation-duration: 9s; animation-direction: reverse;
+}
+@keyframes serum-morph {
+  0%,100% { border-radius: 46% 54% 52% 48% / 50% 46% 54% 50%; }
+  33% { border-radius: 58% 42% 40% 60% / 44% 58% 42% 56%; }
+  66% { border-radius: 40% 60% 56% 44% / 60% 40% 56% 44%; }
+}
+
+/* clear button sits at the right edge of a feed row */
+.feed .row { align-items: center; }
+.feed .row > .rowbtn { margin-left: auto; flex: none; }

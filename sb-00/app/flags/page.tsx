@@ -2,27 +2,29 @@
 
 import HubFrame from '@/components/HubFrame';
 import { FeedSection } from '@/components/Feed';
-import { useSnapshot } from '../providers';
+import { useSb } from '../providers';
 import type { Insight, NodeGroup } from '@/lib/types';
 
 const isCrossNode = (i: Insight) => i.nodes.length > 1;
 
 export default function Flags() {
-  const { insights } = useSnapshot();
+  const { snapshot, resolveInsight, isDesktop } = useSb();
+  const { insights } = snapshot;
   const single = (node: NodeGroup) => insights.filter((i) => !isCrossNode(i) && i.nodes.includes(node));
   const flagCount = insights.filter((i) => i.severity === 'flag').length;
+  const resolve = isDesktop ? resolveInsight : undefined;
 
   return (
     <div className="page">
-      <HubFrame
-        status={<span className="flag">{flagCount} OPEN FLAGS</span>}
-        foot={<span className="flag">Last flag — Sodium, today</span>}
-      >
-        {/* Cross-node — insights whose node_refs span more than one node group */}
-        <FeedSection title="Cross-node" items={insights.filter(isCrossNode)} />
-        <FeedSection title="Training" items={single('training')} />
-        <FeedSection title="Pharmacology" items={single('pharmacology')} />
-        <FeedSection title="Nutrition" items={single('nutrition')} />
+      <HubFrame foot={flagCount > 0 ? <span className="flag">{flagCount} open</span> : <span>All clear</span>}>
+        <div className="block">
+          <p className="eyebrow">SB-Σ flags — {insights.length === 0 ? 'all clear' : `${flagCount} flag${flagCount === 1 ? '' : 's'}, ${insights.length - flagCount} info`}</p>
+          {insights.length === 0 && <p className="synced-note">Nothing open. SB-Σ surfaces cross-node concerns here; clear them as you act.</p>}
+        </div>
+        <FeedSection title="Cross-node" items={insights.filter(isCrossNode)} onResolve={resolve} />
+        <FeedSection title="Lifting & Cardio" items={single('training')} onResolve={resolve} />
+        <FeedSection title="Pharmacology" items={single('pharmacology')} onResolve={resolve} />
+        <FeedSection title="Substrate" items={single('nutrition')} onResolve={resolve} />
       </HubFrame>
     </div>
   );

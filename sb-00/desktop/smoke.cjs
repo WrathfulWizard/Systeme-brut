@@ -109,4 +109,42 @@ assert.equal(secrets.getStravaApp().clientId, '12345', 'strava app creds stored'
 assert.ok(getSnapshot().syncMeta.connections.find((c) => c.source === 'strava').configured === true, 'strava shows configured after saving creds');
 console.log('✓ strava app credentials (stored + reflected as configured)');
 
-console.log('\nALL SMOKE CHECKS PASSED');
+// --- v0.2: protocols, titration, flags, weight, cardio sport ---
+snap = getSnapshot();
+assert.ok(snap.protocols.length >= 2, 'protocols seeded/migrated');
+assert.ok(snap.protocols.find((p) => /test/i.test(p.compound) && p.doseMg === 14), 'test cyp protocol at 14mg');
+assert.ok(snap.serum7d.length === 7 && snap.serum7d.every((s) => s.mg > 0), 'serum derived from protocol timeline');
+assert.ok(snap.weightGoal.target === 86 && snap.weightGoal.current === 89.4, 'weight goal + current');
+assert.ok(snap.cardioBySport.length >= 1, 'cardio grouped by sport');
+
+const testProto = snap.protocols.find((p) => /test/i.test(p.compound));
+mut.titrateProtocol(testProto.id, 16, 'trough low-normal');
+snap = getSnapshot();
+assert.ok(snap.protocols.find((p) => p.id === testProto.id && p.doseMg === 16), 'protocol dose updated to 16');
+assert.ok(snap.titration.find((t) => t.change === '14mg → 16mg' && /trough/.test(t.trigger)), 'titration logged as 14→16 with note');
+
+const protoN = snap.protocols.length;
+mut.addProtocol({ compound: 'Deca', doseMg: 7, route: 'IM', note: 'joints' });
+snap = getSnapshot();
+assert.equal(snap.protocols.length, protoN + 1, 'new protocol added');
+const deca = snap.protocols.find((p) => p.compound === 'Deca');
+mut.titrateProtocol(deca.id, 10, 'recomp');
+snap = getSnapshot();
+assert.ok(snap.titration.find((t) => t.compound === 'Deca' && t.change === '7mg → 10mg'), 'deca 7→10 titration (the example)');
+
+const openBefore = getSnapshot().insights.length;
+const oneFlag = getSnapshot().insights.find((i) => i.severity === 'flag');
+mut.resolveInsight(oneFlag.id);
+snap = getSnapshot();
+assert.equal(snap.insights.length, openBefore - 1, 'resolved flag disappears (no longer persists)');
+console.log('✓ protocol + titration  (test 14→16, deca 7→10) · flags resolvable · weight goal · sport split');
+
+// --- agent (ollama) reachability: offline is handled gracefully ---
+(async () => {
+  const ollama = require('../dist-electron/desktop/agent/ollama.js');
+  const st = await ollama.agentStatus();
+  assert.equal(st.provider, 'ollama', 'agent provider is ollama');
+  assert.equal(typeof st.reachable, 'boolean', 'agent reports reachability');
+  console.log(`✓ sb-Σ agent status      (ollama ${st.reachable ? 'reachable' : 'offline — handled'})`);
+  console.log('\nALL SMOKE CHECKS PASSED');
+})();

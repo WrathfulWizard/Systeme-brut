@@ -433,6 +433,7 @@ export default function SerumLiquidRender({ levels = [78, 52, 40, 30] }: { level
 
     let raf = 0;
     let rot = 0.3;
+    let failed = false;
     const animate = () => {
       rot += 0.0018;
       uniforms.uRot.value.set(rot, 0.15);
@@ -442,10 +443,22 @@ export default function SerumLiquidRender({ levels = [78, 52, 40, 30] }: { level
       uniforms.uLevel1.value = (l[1] ?? 0) / 100;
       uniforms.uLevel2.value = (l[2] ?? 0) / 100;
       uniforms.uLevel3.value = (l[3] ?? 0) / 100;
-      renderer.render(scene, camera);
+      try {
+        renderer.render(scene, camera);
+      } catch {
+        // a shader that compiled on one GPU can still fail to run on another —
+        // bail to the animated fallback instead of freezing on a black box.
+        failed = true;
+        cancelAnimationFrame(raf);
+        setRenderError(true);
+        return;
+      }
       raf = requestAnimationFrame(animate);
     };
     animate();
+    // If the very first frame produced GL errors, fall back.
+    const gl = renderer.getContext();
+    if (gl && gl.getError() !== gl.NO_ERROR && !failed) { setRenderError(true); cancelAnimationFrame(raf); }
 
     const onResize = () => {
       const w = mount.clientWidth, h = mount.clientHeight;
@@ -468,11 +481,13 @@ export default function SerumLiquidRender({ levels = [78, 52, 40, 30] }: { level
   }, []);
 
   if (renderError) {
+    // Always-on CSS fallback: a living "liquid" field whose glow tracks the
+    // current serum level. No WebGL required, so it works on every machine.
+    const lvl = Math.max(0, Math.min(100, levels[0] ?? 0)) / 100;
     return (
-      <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <span className="mono" style={{ color: 'var(--dim)', fontSize: 11 }}>
-          3D readout unavailable — matrix below has the numbers
-        </span>
+      <div className="serum-fallback" aria-hidden style={{ ['--lvl' as string]: lvl }}>
+        <div className="serum-fallback-blob" />
+        <div className="serum-fallback-blob b2" />
       </div>
     );
   }

@@ -10,8 +10,10 @@ import { getSnapshot } from './db/queries';
 import {
   addSet, updateSet, deleteSet, addAdministration, updateAdministration, deleteAdministration,
   addTitration, deleteTitration, addLabPanel, deleteLabPanel,
+  addProtocol, titrateProtocol, endProtocol, deleteProtocol, resolveInsight,
 } from './db/mutations';
-import type { LiftInput, AdminInput, TitrationInput, LabPanelInput } from '../lib/types';
+import { agentStatus, setAgentModel, agentChat, agentReview, type StreamHandlers } from './agent/ollama';
+import type { LiftInput, AdminInput, TitrationInput, LabPanelInput, ProtocolInput, ChatMessage } from '../lib/types';
 import { initSecrets, setCronometer, setStravaApp } from './ingest/secrets';
 import { startIngestion, stopIngestion, syncNow, disconnect, meta } from './ingest/index';
 import { buildAuthUrl, exchangeCode, syncStrava, STRAVA_REDIRECT_PORT } from './ingest/strava';
@@ -102,6 +104,26 @@ function registerIpc() {
     setStravaApp({ clientId: clientId.trim(), clientSecret: clientSecret.trim() });
     return meta();
   });
+
+  // pharmacology protocol
+  ipcMain.handle('sb:addProtocol', (_e, input: ProtocolInput) => { addProtocol(input); return getSnapshot(); });
+  ipcMain.handle('sb:titrateProtocol', (_e, id: number, newDoseMg: number, note?: string) => { titrateProtocol(id, newDoseMg, note); return getSnapshot(); });
+  ipcMain.handle('sb:endProtocol', (_e, id: number) => { endProtocol(id); return getSnapshot(); });
+  ipcMain.handle('sb:deleteProtocol', (_e, id: number) => { deleteProtocol(id); return getSnapshot(); });
+
+  // flags
+  ipcMain.handle('sb:resolveInsight', (_e, id: number) => { resolveInsight(id); return getSnapshot(); });
+
+  // SB-Σ agent (Ollama)
+  ipcMain.handle('sb:agentStatus', () => agentStatus());
+  ipcMain.handle('sb:setAgentModel', (_e, model: string) => setAgentModel(model));
+  const streamHandlers = (): StreamHandlers => ({
+    onToken: (chunk) => win?.webContents.send('sb:agentToken', chunk),
+    onDone: (full) => win?.webContents.send('sb:agentDone', full),
+    onError: (message) => win?.webContents.send('sb:agentError', message),
+  });
+  ipcMain.handle('sb:agentChat', (_e, messages: ChatMessage[]) => { void agentChat(messages, streamHandlers()); });
+  ipcMain.handle('sb:agentReview', () => { void agentReview(streamHandlers()); });
 }
 
 async function createWindow() {

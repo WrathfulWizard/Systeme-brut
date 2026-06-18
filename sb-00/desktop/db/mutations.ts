@@ -1,5 +1,5 @@
 import { getDb } from './index';
-import type { LiftInput, AdminInput, TitrationInput, LabPanelInput } from '../../lib/types';
+import type { LiftInput, AdminInput, TitrationInput, LabPanelInput, ProtocolInput } from '../../lib/types';
 
 /**
  * Manual logging — the write path behind the in-app log forms (Training and
@@ -108,6 +108,64 @@ export function deleteTitration(id: number) {
 export function deleteLabPanel(id: number) {
   // lab_results cascade on panel delete (FK ON DELETE CASCADE)
   getDb().prepare('DELETE FROM lab_panels WHERE id = ?').run(id);
+}
+
+/* ---- continuous protocol (Node B rework) -------------------------------- */
+
+const nowIso = () => new Date().toISOString();
+const todayDate = () => nowIso().slice(0, 10);
+
+export function addProtocol(input: ProtocolInput) {
+  const db = getDb();
+  const compoundId = ensureCompound(input.compound);
+  db.prepare(
+    'INSERT INTO protocols (compound_id, daily_dose_mg, route, started_at, active, note) VALUES (?,?,?,?,1,?)',
+  ).run(compoundId, input.doseMg, input.route, todayDate(), input.note ?? null);
+}
+
+/** Change a running protocol's dose; logs the before→after as a titration. */
+export function titrateProtocol(id: number, newDoseMg: number, note?: string) {
+  const db = getDb();
+  const p = db.prepare('SELECT compound_id AS cid, daily_dose_mg AS dose FROM protocols WHERE id = ?').get(id) as
+    { cid: number; dose: number } | undefined;
+  if (!p) return;
+  const tx = db.transaction(() => {
+    db.prepare(
+      'INSERT INTO titration_log (compound_id, changed_at, dose_before_mg, dose_after_mg, notes) VALUES (?,?,?,?,?)',
+    ).run(p.cid, todayDate(), p.dose, newDoseMg, note ?? null);
+    db.prepare('UPDATE protocols SET daily_dose_mg = ? WHERE id = ?').run(newDoseMg, id);
+  });
+  tx();
+}
+
+export function endProtocol(id: number) {
+  getDb().prepare('UPDATE protocols SET active = 0 WHERE id = ?').run(id);
+}
+
+export function deleteProtocol(id: number) {
+  getDb().prepare('DELETE FROM protocols WHERE id = ?').run(id);
+}
+
+/* ---- flags (SB-Σ) ------------------------------------------------------- */
+
+export function resolveInsight(id: number) {
+  getDb().prepare('UPDATE insights SET resolved_at = ? WHERE id = ?').run(nowIso(), id);
+}
+
+export function addInsight(severity: 'info' | 'flag', body: string, nodeRefs: string[] = []) {
+  getDb().prepare(
+    'INSERT INTO insights (created_at, severity, body, node_refs) VALUES (?,?,?,?)',
+  ).run(nowIso(), severity, body, JSON.stringify(nodeRefs));
+}
+
+/* ---- settings ----------------------------------------------------------- */
+
+export function getSetting(key: string): string | undefined {
+  const r = getDb().prepare('SELECT value FROM settings WHERE key = ?').get(key) as { value: string } | undefined;
+  return r?.value;
+}
+export function setSetting(key: string, value: string) {
+  getDb().prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').run(key, value);
 }
 
 export function getCatalog() {

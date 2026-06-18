@@ -1,74 +1,137 @@
 'use client';
 
+import { useEffect, useRef, useState } from 'react';
 import HubFrame from '@/components/HubFrame';
-import Ascii from '@/components/Ascii';
-import { Feed } from '@/components/Feed';
-import SerumLiquidRender from '@/components/SerumLiquidRender';
-import { asciiBars } from '@/lib/ascii';
-import { useSnapshot } from './providers';
+import { useSb } from './providers';
+import type { ChatMessage } from '@/lib/types';
 
-export default function Overview() {
-  const { insights, regimen, labResults, serum7d, tonnage } = useSnapshot();
+const STARTERS = [
+  'Review my current state.',
+  'Is my current protocol justified by my labs?',
+  'Where am I stalling?',
+  'What should I log next?',
+];
 
-  const serumRows = asciiBars(serum7d.map((s) => ({ label: s.day, value: s.mg, display: `${s.mg}mg` })));
-  const tonnageRows = asciiBars(tonnage.map((t) => ({ label: t.lift, value: t.value, display: `${t.value}kg` })));
+export default function Sigma() {
+  const { agent, refreshAgent, isDesktop } = useSb();
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [input, setInput] = useState('');
+  const [streaming, setStreaming] = useState(false);
+  const chatRef = useRef<HTMLDivElement>(null);
 
-  const peak = serum7d.length ? serum7d.reduce((m, s) => Math.max(m, s.mg), 1) : 1;
-  const pick = (i: number) => serum7d[i] ?? serum7d[serum7d.length - 1] ?? { mg: 0 };
-  const levels = [pick(0), pick(2), pick(4), pick(6)].map((s) => Math.round((s.mg / peak) * 100));
-  const current = serum7d.length ? serum7d[serum7d.length - 1].mg : 0;
+  useEffect(() => {
+    if (!window.sb) return;
+    const offT = window.sb.onAgentToken((chunk) => {
+      setMessages((m) => {
+        const last = m[m.length - 1];
+        if (last?.role === 'assistant') return [...m.slice(0, -1), { ...last, content: last.content + chunk }];
+        return [...m, { role: 'assistant', content: chunk }];
+      });
+    });
+    const offD = window.sb.onAgentDone(() => setStreaming(false));
+    const offE = window.sb.onAgentError((msg) => {
+      setStreaming(false);
+      setMessages((m) => {
+        const last = m[m.length - 1];
+        const note = `⚠ ${msg}`;
+        if (last?.role === 'assistant' && last.content === '') return [...m.slice(0, -1), { role: 'assistant', content: note }];
+        return [...m, { role: 'assistant', content: note }];
+      });
+    });
+    return () => { offT(); offD(); offE(); };
+  }, []);
 
-  const flagCount = insights.filter((i) => i.severity === 'flag').length;
+  useEffect(() => { chatRef.current?.scrollTo(0, chatRef.current.scrollHeight); }, [messages]);
+
+  const ready = isDesktop && agent?.reachable && !!agent.model;
+
+  const send = async (text: string) => {
+    if (!window.sb || !text.trim() || streaming || !ready) return;
+    const history: ChatMessage[] = [...messages, { role: 'user', content: text.trim() }];
+    setMessages([...history, { role: 'assistant', content: '' }]);
+    setInput(''); setStreaming(true);
+    await window.sb.agentChat(history);
+  };
+
+  const review = async () => {
+    if (!window.sb || streaming || !ready) return;
+    setMessages((m) => [...m, { role: 'assistant', content: '' }]);
+    setStreaming(true);
+    await window.sb.agentReview();
+  };
 
   return (
     <div className="page">
-      <HubFrame
-        status={<>SYNC OK · 3 NODES · <span className="flag">{flagCount} OPEN FLAGS</span></>}
-        foot={<span className="flag">Last flag — Sodium, today</span>}
-        side={<Feed items={insights} showTime />}
-      >
-        <div className="block">
-          <p className="eyebrow">Active regimen</p>
-          <table>
-            <tbody>
-              <tr><th>Compound</th><th>Daily dose</th><th>Route</th></tr>
-              {regimen.map((r) => (
-                <tr key={r.compound}><td>{r.compound}</td><td>{r.dose}</td><td>{r.route}</td></tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
-        <div className="block">
-          <p className="eyebrow">Estimated serum — testosterone cyp, 7d</p>
-          <div className="liquid-card">
-            <span className="tag">Visual readout</span>
-            <SerumLiquidRender levels={levels} />
-            <div className="read">{current}<span className="v">mg, current</span></div>
+      <HubFrame>
+        <div className="sigma">
+          <div className="sigma-head">
+            <span className="title">SB-Σ // Synthesizer</span>
+            <span className="meta">
+              {!isDesktop ? 'desktop only'
+                : agent?.reachable
+                  ? <>local · <span className="ok">{agent.model || 'no model'}</span></>
+                  : <span className="bad">ollama offline</span>}
+            </span>
           </div>
-          <Ascii rows={serumRows} />
-        </div>
 
-        <div className="block">
-          <p className="eyebrow">Weekly tonnage — top lifts</p>
-          <Ascii rows={tonnageRows} />
-        </div>
+          {!ready ? (
+            <AgentSetup isDesktop={isDesktop} reachable={!!agent?.reachable} hasModel={!!agent?.model} onRetry={refreshAgent} />
+          ) : (
+            <>
+              <div className="chat" ref={chatRef}>
+                {messages.length === 0 ? (
+                  <div className="chat-empty">
+                    SB-Σ reads every screen — training, pharmacology, substrate — and answers from your live numbers.
+                    Nothing leaves this machine.
+                    <div className="prompts">
+                      {STARTERS.map((s) => <button key={s} className="btn" onClick={() => send(s)}>{s}</button>)}
+                    </div>
+                  </div>
+                ) : messages.map((m, i) => (
+                  <div key={i} className={`msg ${m.role === 'user' ? 'user' : 'sigma'}${streaming && i === messages.length - 1 && m.role === 'assistant' ? ' streaming' : ''}`}>
+                    <span className="who">{m.role === 'user' ? 'You' : 'SB-Σ'}</span>{m.content}
+                  </div>
+                ))}
+              </div>
 
-        <div className="block">
-          <p className="eyebrow">Latest panel — lab results</p>
-          <table>
-            <tbody>
-              <tr><th>Marker</th><th>Value</th><th>Range</th><th>Status</th></tr>
-              {labResults.map((l) => (
-                <tr key={l.marker} className={l.flagged ? 'flagrow' : undefined}>
-                  <td>{l.marker}</td><td>{l.value}</td><td>{l.range}</td>
-                  <td>{l.flagged ? 'FLAGGED' : '—'}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+              <div className="composer">
+                <textarea
+                  value={input}
+                  placeholder="Ask SB-Σ, or challenge a decision…"
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(input); } }}
+                />
+                <div className="btnrow-inline" style={{ flexDirection: 'column' }}>
+                  <button className="btn primary" disabled={streaming || !input.trim()} onClick={() => send(input)}>Send</button>
+                  <button className="btn" disabled={streaming} onClick={review}>Review</button>
+                </div>
+              </div>
+            </>
+          )}
         </div>
       </HubFrame>
+    </div>
+  );
+}
+
+function AgentSetup({ isDesktop, reachable, hasModel, onRetry }: { isDesktop: boolean; reachable: boolean; hasModel: boolean; onRetry: () => void }) {
+  return (
+    <div className="agent-setup">
+      {!isDesktop ? (
+        <>SB-Σ runs inside the desktop app against a <b>local model</b> — launch SB-00 as the standalone program to talk to it.</>
+      ) : !reachable ? (
+        <>
+          <b>SB-Σ needs Ollama running locally.</b> Your data never leaves this machine.<br /><br />
+          1. Install Ollama from <b>ollama.com</b>.<br />
+          2. Pull a model: <code>ollama pull llama3.1</code> (or <code>qwen2.5</code>, <code>mistral</code>).<br />
+          3. Make sure Ollama is running, then <button className="btn" onClick={onRetry}>Re-check</button>
+        </>
+      ) : !hasModel ? (
+        <>
+          Ollama is running, but <b>no model is installed</b>. Pull one: <code>ollama pull llama3.1</code>, then{' '}
+          <button className="btn" onClick={onRetry}>Re-check</button>. Pick the model on the <b>Connections</b> screen.
+        </>
+      ) : null}
     </div>
   );
 }
