@@ -13,6 +13,7 @@ import {
   addProtocol, titrateProtocol, endProtocol, deleteProtocol, resolveInsight,
 } from './db/mutations';
 import { agentStatus, setAgentModel, agentChat, agentReview, agentSweep, type StreamHandlers } from './agent/ollama';
+import { ensureOllamaRunning } from './agent/launch';
 import type { LiftInput, AdminInput, TitrationInput, LabPanelInput, ProtocolInput, ChatMessage } from '../lib/types';
 import { initSecrets, setCronometer, setStravaApp } from './ingest/secrets';
 import { startIngestion, stopIngestion, syncNow, disconnect, meta } from './ingest/index';
@@ -146,6 +147,9 @@ app.whenReady().then(() => {
   initSecrets(join(app.getPath('userData'), 'secrets.bin'));
   registerIpc();
   startIngestion((m) => win?.webContents.send('sb:syncUpdate', m));
+  // Keep the local model alive without a separate terminal — fire-and-forget so
+  // the window never waits on it. If Ollama isn't installed, SB-Σ just stays offline.
+  void ensureOllamaRunning((m) => console.log('[ollama]', m));
   createWindow();
 
   app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });

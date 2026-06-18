@@ -1,0 +1,53 @@
+name: Build SB-00 installer
+
+# Builds the standalone Systeme Brut SB-00 desktop app in the cloud so you never
+# have to run a build on your own machine. Run it from the Actions tab
+# (“Run workflow”), or push a tag like v0.5.0 to also publish a GitHub Release.
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    permissions:
+      contents: write   # needed to publish a Release when triggered by a tag
+    defaults:
+      run:
+        working-directory: sb-00
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: sb-00/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Rebuild native modules for Electron
+        run: npm run rebuild:native
+
+      - name: Build installer
+        run: npm run dist
+
+      # The double-clickable installer — download it from this run's "Artifacts".
+      - name: Upload installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: SystemeBrut-SB00-Windows-Installer
+          path: sb-00/release/*.exe
+          if-no-files-found: error
+
+      # When the run was triggered by a version tag, also attach the .exe to a Release.
+      - name: Publish Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: sb-00/release/*.exe
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
