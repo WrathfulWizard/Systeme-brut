@@ -21,9 +21,16 @@ interface Ctx {
   disconnect: (s: SourceId) => Promise<void>;
   syncNow: (s?: SourceId) => Promise<void>;
   addSet: (input: LiftInput) => Promise<void>;
+  updateSet: (id: number, input: LiftInput) => Promise<void>;
+  deleteSet: (id: number) => Promise<void>;
   addAdministration: (input: AdminInput) => Promise<void>;
+  updateAdministration: (id: number, input: AdminInput) => Promise<void>;
+  deleteAdministration: (id: number) => Promise<void>;
   addTitration: (input: TitrationInput) => Promise<void>;
+  deleteTitration: (id: number) => Promise<void>;
   addLabPanel: (input: LabPanelInput) => Promise<void>;
+  deleteLabPanel: (id: number) => Promise<void>;
+  saveStravaApp: (clientId: string, clientSecret: string) => Promise<void>;
 }
 
 const SbContext = createContext<Ctx | null>(null);
@@ -59,9 +66,16 @@ export function Providers({ children }: { children: React.ReactNode }) {
     disconnect: async (s) => { if (window.sb) setSync(await window.sb.disconnect(s)); await refresh(); },
     syncNow: async (s) => { if (window.sb) setSync(await window.sb.syncNow(s)); await refresh(); },
     addSet: async (input) => { if (window.sb) { const s = await window.sb.addSet(input); setSnapshot(s); setSync(s.syncMeta); } },
+    updateSet: async (id, input) => { if (window.sb) { const s = await window.sb.updateSet(id, input); setSnapshot(s); setSync(s.syncMeta); } },
+    deleteSet: async (id) => { if (window.sb) { const s = await window.sb.deleteSet(id); setSnapshot(s); setSync(s.syncMeta); } },
     addAdministration: async (input) => { if (window.sb) { const s = await window.sb.addAdministration(input); setSnapshot(s); setSync(s.syncMeta); } },
+    updateAdministration: async (id, input) => { if (window.sb) { const s = await window.sb.updateAdministration(id, input); setSnapshot(s); setSync(s.syncMeta); } },
+    deleteAdministration: async (id) => { if (window.sb) { const s = await window.sb.deleteAdministration(id); setSnapshot(s); setSync(s.syncMeta); } },
     addTitration: async (input) => { if (window.sb) { const s = await window.sb.addTitration(input); setSnapshot(s); setSync(s.syncMeta); } },
+    deleteTitration: async (id) => { if (window.sb) { const s = await window.sb.deleteTitration(id); setSnapshot(s); setSync(s.syncMeta); } },
     addLabPanel: async (input) => { if (window.sb) { const s = await window.sb.addLabPanel(input); setSnapshot(s); setSync(s.syncMeta); } },
+    deleteLabPanel: async (id) => { if (window.sb) { const s = await window.sb.deleteLabPanel(id); setSnapshot(s); setSync(s.syncMeta); } },
+    saveStravaApp: async (clientId, clientSecret) => { if (window.sb) setSync(await window.sb.saveStravaApp(clientId, clientSecret)); },
   }), [snapshot, sync, isDesktop, refresh]);
 
   return <SbContext.Provider value={value}>{children}</SbContext.Provider>;

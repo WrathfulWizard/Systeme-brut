@@ -44,12 +44,37 @@ export function addSet(input: LiftInput) {
   ).run(sessionId, exerciseId, input.setKind, input.weightKg, input.reps, ord);
 }
 
+export function updateSet(id: number, input: LiftInput) {
+  const db = getDb();
+  const exerciseId = ensureExercise(input.exercise);
+  const sessionId = sessionForDate(input.date);
+  db.prepare(
+    'UPDATE sets SET session_id=?, exercise_id=?, set_kind=?, weight_kg=?, reps=? WHERE id=?',
+  ).run(sessionId, exerciseId, input.setKind, input.weightKg, input.reps, id);
+}
+
+export function deleteSet(id: number) {
+  getDb().prepare('DELETE FROM sets WHERE id = ?').run(id);
+}
+
 export function addAdministration(input: AdminInput) {
   const db = getDb();
   const compoundId = ensureCompound(input.compound);
   db.prepare(
     'INSERT INTO administrations (compound_id, administered_at, dose_mg, route) VALUES (?,?,?,?)',
   ).run(compoundId, input.administeredAt, input.doseMg, input.route);
+}
+
+export function updateAdministration(id: number, input: AdminInput) {
+  const db = getDb();
+  const compoundId = ensureCompound(input.compound);
+  db.prepare(
+    'UPDATE administrations SET compound_id=?, administered_at=?, dose_mg=?, route=? WHERE id=?',
+  ).run(compoundId, input.administeredAt, input.doseMg, input.route, id);
+}
+
+export function deleteAdministration(id: number) {
+  getDb().prepare('DELETE FROM administrations WHERE id = ?').run(id);
 }
 
 export function addTitration(input: TitrationInput) {
@@ -74,6 +99,15 @@ export function addLabPanel(input: LabPanelInput) {
     }
   });
   tx();
+}
+
+export function deleteTitration(id: number) {
+  getDb().prepare('DELETE FROM titration_log WHERE id = ?').run(id);
+}
+
+export function deleteLabPanel(id: number) {
+  // lab_results cascade on panel delete (FK ON DELETE CASCADE)
+  getDb().prepare('DELETE FROM lab_panels WHERE id = ?').run(id);
 }
 
 export function getCatalog() {

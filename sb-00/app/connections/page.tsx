@@ -20,9 +20,11 @@ function dot(status: ConnectionState['status']) {
 }
 
 export default function Connections() {
-  const { sync, isDesktop, connectStrava, connectCronometer, disconnect, syncNow } = useSb();
+  const { sync, isDesktop, connectStrava, connectCronometer, disconnect, syncNow, saveStravaApp } = useSb();
   const [cronUser, setCronUser] = useState('');
   const [cronPass, setCronPass] = useState('');
+  const [stravaId, setStravaId] = useState('');
+  const [stravaSecret, setStravaSecret] = useState('');
   const [busy, setBusy] = useState<SourceId | null>(null);
 
   const get = (s: SourceId) => sync.connections.find((c) => c.source === s)
@@ -61,16 +63,34 @@ export default function Connections() {
               <p className="mono" style={{ fontSize: 11.5, color: 'var(--dim)', margin: '0 0 12px', lineHeight: 1.6 }}>{HOW[s]}</p>
 
               {s === 'strava' && (
-                <div className="btnrow-inline">
-                  {c.status === 'connected'
-                    ? <>
-                        <button className="btn" disabled={busy === s} onClick={wrap(s, () => syncNow('strava'))}>Sync now</button>
-                        <button className="btn" disabled={busy === s} onClick={wrap(s, () => disconnect('strava'))}>Disconnect</button>
-                      </>
-                    : <button className="btn" disabled={!isDesktop || busy === s} onClick={wrap(s, connectStrava)}>
-                        {busy === s ? 'Waiting for browser…' : 'Connect Strava'}
-                      </button>}
-                </div>
+                c.status === 'connected'
+                  ? <div className="btnrow-inline">
+                      <button className="btn" disabled={busy === s} onClick={wrap(s, () => syncNow('strava'))}>Sync now</button>
+                      <button className="btn" disabled={busy === s} onClick={wrap(s, () => disconnect('strava'))}>Disconnect</button>
+                    </div>
+                  : !c.configured
+                    ? <div>
+                        <p className="mono" style={{ fontSize: 11, color: 'var(--dim)', margin: '0 0 8px' }}>
+                          One-time setup: create a free personal API app at{' '}
+                          <span style={{ color: 'var(--text)' }}>strava.com/settings/api</span>{' '}
+                          (set <span style={{ color: 'var(--text)' }}>Authorization Callback Domain</span> to <span style={{ color: 'var(--text)' }}>127.0.0.1</span>),
+                          then paste its Client ID and Secret here.
+                        </p>
+                        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+                          <input className="fld" placeholder="Client ID" value={stravaId} onChange={(e) => setStravaId(e.target.value)} />
+                          <input className="fld" placeholder="Client Secret" type="password" value={stravaSecret} onChange={(e) => setStravaSecret(e.target.value)} />
+                          <button className="btn" disabled={!isDesktop || busy === s || !stravaId || !stravaSecret}
+                            onClick={wrap(s, async () => { await saveStravaApp(stravaId.trim(), stravaSecret.trim()); setStravaSecret(''); })}>
+                            Save credentials
+                          </button>
+                        </div>
+                      </div>
+                    : <div className="btnrow-inline">
+                        <button className="btn" disabled={!isDesktop || busy === s} onClick={wrap(s, connectStrava)}>
+                          {busy === s ? 'Waiting for browser…' : 'Connect Strava'}
+                        </button>
+                        <button className="btn" disabled={busy === s} onClick={wrap(s, () => saveStravaApp('', ''))}>Reset credentials</button>
+                      </div>
               )}
 
               {s === 'cronometer' && (

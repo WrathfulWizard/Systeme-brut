@@ -78,4 +78,35 @@ assert.ok(snap.titration.find((t) => t.change === '14mg → 16mg'), 'titration c
 assert.ok(snap.labResults.find((l) => l.marker === 'ALT' && l.flagged), 'new lab panel is latest, ALT flagged');
 console.log('✓ manual logging        (set + dose + titration + lab panel written and reflected)');
 
+// --- edit + delete ---
+snap = getSnapshot();
+const dlSet = snap.recentSets.find((s) => s.exercise === 'Deadlift');
+mut.updateSet(dlSet.id, { date: dlSet.iso, exercise: 'Deadlift', setKind: 'straight', weightKg: 185, reps: 5 });
+snap = getSnapshot();
+assert.ok(snap.recentSets.find((s) => s.id === dlSet.id && s.weightKg === 185), 'set edit persisted (180→185)');
+mut.deleteSet(dlSet.id);
+snap = getSnapshot();
+assert.ok(!snap.recentSets.find((s) => s.id === dlSet.id), 'set delete removed the row');
+
+const hcg = getSnapshot().administrations.find((a) => a.compound === 'HCG');
+mut.deleteAdministration(hcg.id);
+assert.ok(!getSnapshot().administrations.find((a) => a.id === hcg.id), 'administration delete works');
+
+const panelId = getSnapshot().labPanelId;
+mut.deleteLabPanel(panelId);
+const afterPanel = getSnapshot();
+assert.ok(afterPanel.labPanelId !== panelId, 'lab panel delete reverts to prior panel');
+assert.ok(afterPanel.labResults.length > 0, 'a prior panel is now latest');
+console.log('✓ edit + delete         (set edit/delete, admin delete, lab panel delete → prior panel)');
+
+// --- strava app credentials (in-app config, OS-encrypted store) ---
+try { rmSync('/tmp/sb-smoke-secrets.bin'); } catch {}
+const secrets = require('../dist-electron/desktop/ingest/secrets.js');
+secrets.initSecrets('/tmp/sb-smoke-secrets.bin');
+assert.ok(getSnapshot().syncMeta.connections.find((c) => c.source === 'strava').configured === false, 'strava starts unconfigured');
+secrets.setStravaApp({ clientId: '12345', clientSecret: 'shh' });
+assert.equal(secrets.getStravaApp().clientId, '12345', 'strava app creds stored');
+assert.ok(getSnapshot().syncMeta.connections.find((c) => c.source === 'strava').configured === true, 'strava shows configured after saving creds');
+console.log('✓ strava app credentials (stored + reflected as configured)');
+
 console.log('\nALL SMOKE CHECKS PASSED');

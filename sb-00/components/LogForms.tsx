@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useSb } from '@/app/providers';
-import type { SetKind } from '@/lib/types';
+import type { SetKind, SetRow, AdminRow } from '@/lib/types';
 
 const today = () => new Date().toISOString().slice(0, 10);
 
@@ -18,15 +18,16 @@ function DesktopNote() {
   return <p className="synced-note">Manual logging runs in the desktop app — launch SB-00 to add entries.</p>;
 }
 
-/* ---- Training: log a set ------------------------------------------------- */
-export function LiftLogForm() {
-  const { snapshot, addSet, isDesktop } = useSb();
-  const [open, setOpen] = useState(false);
-  const [date, setDate] = useState(today());
-  const [exercise, setExercise] = useState('');
-  const [setKind, setSetKind] = useState<SetKind>('straight');
-  const [weight, setWeight] = useState('');
-  const [reps, setReps] = useState('');
+/* ---- Training: log / edit a set ----------------------------------------- */
+export function LiftLogForm({ editing, onDone }: { editing?: SetRow | null; onDone?: () => void }) {
+  const { snapshot, addSet, updateSet, isDesktop } = useSb();
+  const isEdit = !!editing;
+  const [open, setOpen] = useState(isEdit);
+  const [date, setDate] = useState(editing?.iso ?? today());
+  const [exercise, setExercise] = useState(editing?.exercise ?? '');
+  const [setKind, setSetKind] = useState<SetKind>(editing?.setKind ?? 'straight');
+  const [weight, setWeight] = useState(editing ? String(editing.weightKg) : '');
+  const [reps, setReps] = useState(editing ? String(editing.repsN) : '');
   const [busy, setBusy] = useState(false);
 
   if (!isDesktop) return <DesktopNote />;
@@ -34,45 +35,47 @@ export function LiftLogForm() {
   const submit = async () => {
     setBusy(true);
     try {
-      await addSet({ date, exercise: exercise.trim(), setKind, weightKg: Number(weight), reps: Number(reps) });
-      setExercise(''); setWeight(''); setReps(''); setOpen(false);
+      const input = { date, exercise: exercise.trim(), setKind, weightKg: Number(weight), reps: Number(reps) };
+      if (isEdit && editing) await updateSet(editing.id, input);
+      else { await addSet(input); setExercise(''); setWeight(''); setReps(''); setOpen(false); }
+      onDone?.();
     } finally { setBusy(false); }
   };
 
-  return (
-    <>
-      <Toggle open={open} onClick={() => setOpen((v) => !v)} label="Log set" />
-      {open && (
-        <div className="logform">
-          <div className="field"><label>Date</label>
-            <input className="fld" type="date" value={date} onChange={(e) => setDate(e.target.value)} /></div>
-          <div className="field"><label>Exercise</label>
-            <input className="fld" list="exercise-list" placeholder="Squat" value={exercise} onChange={(e) => setExercise(e.target.value)} />
-            <datalist id="exercise-list">{snapshot.catalog.exercises.map((x) => <option key={x} value={x} />)}</datalist>
-          </div>
-          <div className="field"><label>Set</label>
-            <select className="fld" value={setKind} onChange={(e) => setSetKind(e.target.value as SetKind)}>
-              <option value="straight">Straight</option><option value="rp1">RP1</option><option value="rp_burst">RP burst</option>
-            </select></div>
-          <div className="field"><label>Weight (kg)</label>
-            <input className="fld w-narrow" type="number" inputMode="decimal" value={weight} onChange={(e) => setWeight(e.target.value)} /></div>
-          <div className="field"><label>Reps</label>
-            <input className="fld w-narrow" type="number" inputMode="numeric" value={reps} onChange={(e) => setReps(e.target.value)} /></div>
-          <button className="btn primary" disabled={!valid || busy} onClick={submit}>{busy ? 'Saving…' : 'Add set'}</button>
-        </div>
-      )}
-    </>
+  const body = (
+    <div className="logform">
+      <div className="field"><label>Date</label>
+        <input className="fld" type="date" value={date} onChange={(e) => setDate(e.target.value)} /></div>
+      <div className="field"><label>Exercise</label>
+        <input className="fld" list="exercise-list" placeholder="Squat" value={exercise} onChange={(e) => setExercise(e.target.value)} />
+        <datalist id="exercise-list">{snapshot.catalog.exercises.map((x) => <option key={x} value={x} />)}</datalist>
+      </div>
+      <div className="field"><label>Set</label>
+        <select className="fld" value={setKind} onChange={(e) => setSetKind(e.target.value as SetKind)}>
+          <option value="straight">Straight</option><option value="rp1">RP1</option><option value="rp_burst">RP burst</option>
+        </select></div>
+      <div className="field"><label>Weight (kg)</label>
+        <input className="fld w-narrow" type="number" inputMode="decimal" value={weight} onChange={(e) => setWeight(e.target.value)} /></div>
+      <div className="field"><label>Reps</label>
+        <input className="fld w-narrow" type="number" inputMode="numeric" value={reps} onChange={(e) => setReps(e.target.value)} /></div>
+      <button className="btn primary" disabled={!valid || busy} onClick={submit}>{busy ? 'Saving…' : isEdit ? 'Save' : 'Add set'}</button>
+      {isEdit && <button className="btn" disabled={busy} onClick={onDone}>Cancel</button>}
+    </div>
   );
+
+  if (isEdit) return <><p className="editing-banner">Editing set</p>{body}</>;
+  return <><Toggle open={open} onClick={() => setOpen((v) => !v)} label="Log set" />{open && body}</>;
 }
 
-/* ---- Pharmacology: administration --------------------------------------- */
-export function AdminLogForm() {
-  const { snapshot, addAdministration, isDesktop } = useSb();
-  const [open, setOpen] = useState(false);
-  const [date, setDate] = useState(today());
-  const [compound, setCompound] = useState('');
-  const [dose, setDose] = useState('');
-  const [route, setRoute] = useState('IM');
+/* ---- Pharmacology: administration (log / edit) -------------------------- */
+export function AdminLogForm({ editing, onDone }: { editing?: AdminRow | null; onDone?: () => void }) {
+  const { snapshot, addAdministration, updateAdministration, isDesktop } = useSb();
+  const isEdit = !!editing;
+  const [open, setOpen] = useState(isEdit);
+  const [date, setDate] = useState(editing?.iso ?? today());
+  const [compound, setCompound] = useState(editing?.compound ?? '');
+  const [dose, setDose] = useState(editing ? String(editing.doseMg) : '');
+  const [route, setRoute] = useState(editing?.routeRaw ?? 'IM');
   const [busy, setBusy] = useState(false);
 
   if (!isDesktop) return <DesktopNote />;
@@ -80,32 +83,33 @@ export function AdminLogForm() {
   const submit = async () => {
     setBusy(true);
     try {
-      await addAdministration({ compound: compound.trim(), doseMg: Number(dose), route, administeredAt: `${date}T08:00:00` });
-      setDose(''); setOpen(false);
+      const input = { compound: compound.trim(), doseMg: Number(dose), route, administeredAt: `${date}T08:00:00` };
+      if (isEdit && editing) await updateAdministration(editing.id, input);
+      else { await addAdministration(input); setDose(''); setOpen(false); }
+      onDone?.();
     } finally { setBusy(false); }
   };
 
-  return (
-    <>
-      <Toggle open={open} onClick={() => setOpen((v) => !v)} label="Log dose" />
-      {open && (
-        <div className="logform">
-          <div className="field"><label>Date</label>
-            <input className="fld" type="date" value={date} onChange={(e) => setDate(e.target.value)} /></div>
-          <div className="field"><label>Compound</label>
-            <input className="fld" list="compound-list" placeholder="Testosterone Cyp" value={compound} onChange={(e) => setCompound(e.target.value)} />
-            <datalist id="compound-list">{snapshot.catalog.compounds.map((x) => <option key={x} value={x} />)}</datalist>
-          </div>
-          <div className="field"><label>Dose (mg)</label>
-            <input className="fld w-narrow" type="number" inputMode="decimal" value={dose} onChange={(e) => setDose(e.target.value)} /></div>
-          <div className="field"><label>Route</label>
-            <select className="fld" value={route} onChange={(e) => setRoute(e.target.value)}>
-              <option>IM</option><option>SubQ</option><option value="oral">Oral</option></select></div>
-          <button className="btn primary" disabled={!valid || busy} onClick={submit}>{busy ? 'Saving…' : 'Add dose'}</button>
-        </div>
-      )}
-    </>
+  const body = (
+    <div className="logform">
+      <div className="field"><label>Date</label>
+        <input className="fld" type="date" value={date} onChange={(e) => setDate(e.target.value)} /></div>
+      <div className="field"><label>Compound</label>
+        <input className="fld" list="compound-list" placeholder="Testosterone Cyp" value={compound} onChange={(e) => setCompound(e.target.value)} />
+        <datalist id="compound-list">{snapshot.catalog.compounds.map((x) => <option key={x} value={x} />)}</datalist>
+      </div>
+      <div className="field"><label>Dose (mg)</label>
+        <input className="fld w-narrow" type="number" inputMode="decimal" value={dose} onChange={(e) => setDose(e.target.value)} /></div>
+      <div className="field"><label>Route</label>
+        <select className="fld" value={route} onChange={(e) => setRoute(e.target.value)}>
+          <option>IM</option><option>SubQ</option><option value="oral">Oral</option></select></div>
+      <button className="btn primary" disabled={!valid || busy} onClick={submit}>{busy ? 'Saving…' : isEdit ? 'Save' : 'Add dose'}</button>
+      {isEdit && <button className="btn" disabled={busy} onClick={onDone}>Cancel</button>}
+    </div>
   );
+
+  if (isEdit) return <><p className="editing-banner">Editing dose</p>{body}</>;
+  return <><Toggle open={open} onClick={() => setOpen((v) => !v)} label="Log dose" />{open && body}</>;
 }
 
 /* ---- Pharmacology: titration change ------------------------------------- */

@@ -44,7 +44,9 @@ Two ways, by node:
 - **Training & Pharmacology — hand-logged.** Each screen has a `＋ Log …`
   button (Lifts: log a set; Pharmacology: log a dose, a titration change, or a
   lab panel). Entries write straight to the local SQLite store and the screen
-  updates immediately. New exercises/compounds you type are remembered.
+  updates immediately. New exercises/compounds you type are remembered. Every
+  logged row has `edit` / `del` controls — sets and doses open back in the form
+  prefilled; titration entries and lab panels delete in place.
 - **Cardio & Nutrition — synced.** These pull in automatically — runs from
   Strava, nutrition from Cronometer — so there's no manual entry on those
   screens. Link them on **Connections** (below).
@@ -63,17 +65,15 @@ Open the **Connections** screen in the app to link them.
 | **Cronometer**   | Unofficial. Logs in with stored credentials and pulls the daily export.   |
 
 ### Strava
-Create a personal API application at <https://www.strava.com/settings/api> and
-set the credentials before launching:
+Create a free personal API application at <https://www.strava.com/settings/api>
+and set its **Authorization Callback Domain** to `127.0.0.1`. Then, on the
+**Connections** screen, paste the app's **Client ID** and **Client Secret** and
+*Save credentials* (stored OS-encrypted — no env vars needed). Click *Connect
+Strava*: the system browser opens, you authorize, and activities flow into
+Cardio. Tokens refresh automatically.
 
-```bash
-export STRAVA_CLIENT_ID=xxxxx
-export STRAVA_CLIENT_SECRET=xxxxxxxxxxxxxxxx
-```
-
-Set the app's **Authorization Callback Domain** to `127.0.0.1`. Then click
-*Connect Strava* — the system browser opens, you authorize, and activities flow
-into Cardio. Tokens are refreshed automatically and stored OS-encrypted.
+> Prefer env vars? `STRAVA_CLIENT_ID` / `STRAVA_CLIENT_SECRET` are still honored
+> as a fallback if set before launch.
 
 ### Apple Health
 Apple exposes no server API; HealthKit data lives on the phone. Install the

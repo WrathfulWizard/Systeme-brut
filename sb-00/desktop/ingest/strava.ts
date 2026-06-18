@@ -1,6 +1,6 @@
 import { getDb } from '../db/index';
 import { setConnection, getCursor } from '../db/queries';
-import { getStrava, setStrava, type StravaSecret } from './secrets';
+import { getStrava, setStrava, getStravaApp, type StravaSecret } from './secrets';
 
 /**
  * Strava ingestion — the one source with a real public API.
@@ -20,12 +20,20 @@ export const STRAVA_REDIRECT_URI = `http://127.0.0.1:${STRAVA_REDIRECT_PORT}/str
 const SCOPE = 'read,activity:read_all';
 
 function creds() {
-  const clientId = process.env.STRAVA_CLIENT_ID;
-  const clientSecret = process.env.STRAVA_CLIENT_SECRET;
+  // prefer credentials saved in-app (Connections screen); fall back to env vars
+  const app = getStravaApp();
+  const clientId = app?.clientId || process.env.STRAVA_CLIENT_ID;
+  const clientSecret = app?.clientSecret || process.env.STRAVA_CLIENT_SECRET;
   if (!clientId || !clientSecret) {
-    throw new Error('Strava API credentials missing — set STRAVA_CLIENT_ID and STRAVA_CLIENT_SECRET');
+    throw new Error('Strava API credentials missing — add your Client ID and Secret on the Connections screen');
   }
   return { clientId, clientSecret };
+}
+
+/** Whether Strava API app credentials are available (saved or via env). */
+export function hasStravaApp(): boolean {
+  const app = getStravaApp();
+  return !!(app?.clientId && app?.clientSecret) || !!(process.env.STRAVA_CLIENT_ID && process.env.STRAVA_CLIENT_SECRET);
 }
 
 export function buildAuthUrl(): string {

@@ -19,10 +19,10 @@ export const seedSnapshot: Snapshot = {
       body: 'Vitamin D trending down three weeks, consistent with reduced outdoor training.' },
   ],
   recentSets: [
-    { date: '06.17', exercise: 'Squat', set: 'RP1', weight: '140kg', reps: '5' },
-    { date: '06.17', exercise: 'Squat', set: 'RP burst', weight: '140kg', reps: '3+2' },
-    { date: '06.15', exercise: 'Bench', set: 'RP1', weight: '100kg', reps: '6' },
-    { date: '06.15', exercise: 'Bench', set: 'RP burst', weight: '100kg', reps: '3+2' },
+    { id: 1, date: '06.17', exercise: 'Squat', set: 'RP1', weight: '140kg', reps: '8', iso: '2026-06-17', setKind: 'rp1', weightKg: 140, repsN: 8 },
+    { id: 2, date: '06.17', exercise: 'Squat', set: 'RP burst', weight: '140kg', reps: '3', iso: '2026-06-17', setKind: 'rp_burst', weightKg: 140, repsN: 3 },
+    { id: 3, date: '06.15', exercise: 'Bench', set: 'RP1', weight: '100kg', reps: '6', iso: '2026-06-15', setKind: 'rp1', weightKg: 100, repsN: 6 },
+    { id: 4, date: '06.15', exercise: 'Bench', set: 'Straight', weight: '100kg', reps: '6', iso: '2026-06-15', setKind: 'straight', weightKg: 100, repsN: 6 },
   ],
   prLog: [
     { exercise: 'Squat', prVolume: 8120, lastBeat: '06.17', status: 'NEW' },
@@ -50,14 +50,14 @@ export const seedSnapshot: Snapshot = {
     { compound: 'Anavar', dose: '20mg/day', route: 'Oral' },
   ],
   administrations: [
-    { date: '06.17', compound: 'Testosterone Cyp', dose: '14mg', route: 'IM' },
-    { date: '06.17', compound: 'Anavar', dose: '20mg', route: 'Oral' },
-    { date: '06.16', compound: 'Testosterone Cyp', dose: '14mg', route: 'IM' },
-    { date: '06.16', compound: 'Anavar', dose: '20mg', route: 'Oral' },
+    { id: 1, date: '06.17', compound: 'Testosterone Cyp', dose: '14mg', route: 'IM', iso: '2026-06-17', doseMg: 14, routeRaw: 'IM' },
+    { id: 2, date: '06.17', compound: 'Anavar', dose: '20mg', route: 'Oral', iso: '2026-06-17', doseMg: 20, routeRaw: 'oral' },
+    { id: 3, date: '06.16', compound: 'Testosterone Cyp', dose: '14mg', route: 'IM', iso: '2026-06-16', doseMg: 14, routeRaw: 'IM' },
+    { id: 4, date: '06.16', compound: 'Anavar', dose: '20mg', route: 'Oral', iso: '2026-06-16', doseMg: 20, routeRaw: 'oral' },
   ],
   titration: [
-    { date: '06.12', compound: 'Testosterone Cyp', change: '11mg → 14mg', trigger: 'Trough low-normal, progressing per plan' },
-    { date: '05.20', compound: 'Anavar', change: '10mg → 20mg', trigger: 'No ALT rise at 4wk check' },
+    { id: 1, date: '06.12', compound: 'Testosterone Cyp', change: '11mg → 14mg', trigger: 'Trough low-normal, progressing per plan' },
+    { id: 2, date: '05.20', compound: 'Anavar', change: '10mg → 20mg', trigger: 'No ALT rise at 4wk check' },
   ],
   labResults: [
     { marker: 'GGT', value: '42 U/L', range: '8–61', flagged: false },

@@ -241,3 +241,27 @@ tr.prrow td:last-child { font-weight: 700; color: var(--text); }
   margin: -4px 0 14px;
 }
 .synced-note .flag { color: var(--mag); }
+
+/* ---- row actions (edit / delete on logged rows) ------------------------- */
+.rowact { white-space: nowrap; text-align: right; width: 1%; }
+.rowbtn {
+  background: transparent;
+  border: 1px solid var(--line-soft);
+  color: var(--dim);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1;
+  padding: 3px 7px;
+  margin-left: 4px;
+  cursor: pointer;
+}
+.rowbtn:hover { color: var(--text); border-color: var(--line); }
+.rowbtn.del:hover { color: var(--mag); border-color: var(--mag); }
+.editing-banner {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--mag);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  margin: 0 0 8px;
+}

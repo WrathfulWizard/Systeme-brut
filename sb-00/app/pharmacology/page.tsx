@@ -3,11 +3,15 @@
 import HubFrame from '@/components/HubFrame';
 import { Feed } from '@/components/Feed';
 import { AdminLogForm, TitrationLogForm, LabPanelLogForm } from '@/components/LogForms';
-import { useSnapshot } from '../providers';
+import { useSb } from '../providers';
+import { useState } from 'react';
+import type { AdminRow } from '@/lib/types';
 
 export default function Pharmacology() {
-  const { insights, regimen, administrations, titration, labResults } = useSnapshot();
+  const { snapshot, deleteAdministration, deleteTitration, deleteLabPanel, isDesktop } = useSb();
+  const { insights, regimen, administrations, titration, labResults, labPanelId } = snapshot;
   const pharmFlags = insights.filter((i) => i.nodes.includes('pharmacology'));
+  const [editing, setEditing] = useState<AdminRow | null>(null);
 
   return (
     <div className="page">
@@ -29,13 +33,21 @@ export default function Pharmacology() {
         </div>
 
         <div className="block">
-          <AdminLogForm />
+          <AdminLogForm key={editing?.id ?? 'new'} editing={editing} onDone={() => setEditing(null)} />
           <p className="eyebrow">Daily administrations</p>
           <table>
             <tbody>
-              <tr><th>Date</th><th>Compound</th><th>Dose</th><th>Route</th></tr>
-              {administrations.map((a, i) => (
-                <tr key={i}><td>{a.date}</td><td>{a.compound}</td><td>{a.dose}</td><td>{a.route}</td></tr>
+              <tr><th>Date</th><th>Compound</th><th>Dose</th><th>Route</th>{isDesktop && <th />}</tr>
+              {administrations.map((a) => (
+                <tr key={a.id} className={editing?.id === a.id ? 'prrow' : undefined}>
+                  <td>{a.date}</td><td>{a.compound}</td><td>{a.dose}</td><td>{a.route}</td>
+                  {isDesktop && (
+                    <td className="rowact">
+                      <button className="rowbtn" onClick={() => setEditing(a)}>edit</button>
+                      <button className="rowbtn del" onClick={() => deleteAdministration(a.id)}>del</button>
+                    </td>
+                  )}
+                </tr>
               ))}
             </tbody>
           </table>
@@ -46,9 +58,16 @@ export default function Pharmacology() {
           <p className="eyebrow">Titration history</p>
           <table>
             <tbody>
-              <tr><th>Date</th><th>Compound</th><th>Change</th><th>Trigger</th></tr>
-              {titration.map((t, i) => (
-                <tr key={i}><td>{t.date}</td><td>{t.compound}</td><td>{t.change}</td><td>{t.trigger}</td></tr>
+              <tr><th>Date</th><th>Compound</th><th>Change</th><th>Trigger</th>{isDesktop && <th />}</tr>
+              {titration.map((t) => (
+                <tr key={t.id}>
+                  <td>{t.date}</td><td>{t.compound}</td><td>{t.change}</td><td>{t.trigger}</td>
+                  {isDesktop && (
+                    <td className="rowact">
+                      <button className="rowbtn del" onClick={() => deleteTitration(t.id)}>del</button>
+                    </td>
+                  )}
+                </tr>
               ))}
             </tbody>
           </table>
@@ -56,7 +75,12 @@ export default function Pharmacology() {
 
         <div className="block">
           <LabPanelLogForm />
-          <p className="eyebrow">Latest panel — lab results</p>
+          <div className="logbar" style={{ justifyContent: 'space-between' }}>
+            <p className="eyebrow" style={{ margin: 0 }}>Latest panel — lab results</p>
+            {isDesktop && labPanelId != null && labResults.length > 0 && (
+              <button className="rowbtn del" onClick={() => deleteLabPanel(labPanelId)}>delete panel</button>
+            )}
+          </div>
           <table>
             <tbody>
               <tr><th>Marker</th><th>Value</th><th>Range</th><th>Status</th></tr>

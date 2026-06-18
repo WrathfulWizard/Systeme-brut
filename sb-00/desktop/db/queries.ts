@@ -1,8 +1,12 @@
 import { getDb } from './index';
 import { getCatalog } from './mutations';
+import { getStravaApp } from '../ingest/secrets';
 import type {
   Snapshot, Insight, NodeGroup, SyncMeta, ConnectionState, SourceId, SourceStatus,
 } from '../../lib/types';
+
+const stravaConfigured = () =>
+  !!getStravaApp()?.clientId || !!process.env.STRAVA_CLIENT_ID;
 
 /* ---- small formatting helpers ------------------------------------------- */
 
@@ -46,16 +50,18 @@ export function getSnapshot(): Snapshot {
       };
     });
 
-  // recent sets (latest few), formatted
+  // recent sets (latest few), formatted + raw for edit
   const recentSets = (db.prepare(`
-    SELECT ts.occurred_at AS at, e.name AS exercise, s.set_kind AS kind, s.weight_kg AS w, s.reps AS reps
+    SELECT s.id AS id, ts.occurred_at AS at, e.name AS exercise, s.set_kind AS kind, s.weight_kg AS w, s.reps AS reps
     FROM sets s JOIN training_sessions ts ON ts.id = s.session_id JOIN exercises e ON e.id = s.exercise_id
-    ORDER BY ts.occurred_at DESC, s.ordinal ASC LIMIT 5
-  `).all() as { at: string; exercise: string; kind: string; w: number; reps: number }[])
+    ORDER BY ts.occurred_at DESC, s.ordinal ASC LIMIT 6
+  `).all() as { id: number; at: string; exercise: string; kind: string; w: number; reps: number }[])
     .map((r) => ({
-      date: md(r.at), exercise: r.exercise,
+      id: r.id, date: md(r.at), exercise: r.exercise,
       set: r.kind === 'rp1' ? 'RP1' : r.kind === 'rp_burst' ? 'RP burst' : 'Straight',
       weight: `${r.w}kg`, reps: String(r.reps),
+      iso: r.at.slice(0, 10), setKind: (r.kind as 'straight' | 'rp1' | 'rp_burst') ?? 'straight',
+      weightKg: r.w, repsN: r.reps,
     }));
 
   // session volume per exercise → PR (max) and weekly tonnage (sum, 7d)
@@ -108,22 +114,27 @@ export function getSnapshot(): Snapshot {
     .map((r) => ({ compound: r.compound, dose: `${r.dose}mg/day`, route: r.route === 'oral' ? 'Oral' : r.route }));
 
   const administrations = (db.prepare(`
-    SELECT a.administered_at AS at, c.name AS compound, a.dose_mg AS dose, a.route AS route
+    SELECT a.id AS id, a.administered_at AS at, c.name AS compound, a.dose_mg AS dose, a.route AS route
     FROM administrations a JOIN compounds c ON c.id = a.compound_id
     ORDER BY a.administered_at DESC LIMIT 6
-  `).all() as { at: string; compound: string; dose: number; route: string }[])
-    .map((r) => ({ date: md(r.at), compound: r.compound, dose: `${r.dose}mg`, route: r.route === 'oral' ? 'Oral' : r.route }));
+  `).all() as { id: number; at: string; compound: string; dose: number; route: string }[])
+    .map((r) => ({
+      id: r.id, date: md(r.at), compound: r.compound, dose: `${r.dose}mg`,
+      route: r.route === 'oral' ? 'Oral' : r.route,
+      iso: r.at.slice(0, 10), doseMg: r.dose, routeRaw: r.route,
+    }));
 
   const titration = (db.prepare(`
-    SELECT t.changed_at AS at, c.name AS compound, t.dose_before_mg AS b, t.dose_after_mg AS a2, t.notes AS notes
+    SELECT t.id AS id, t.changed_at AS at, c.name AS compound, t.dose_before_mg AS b, t.dose_after_mg AS a2, t.notes AS notes
     FROM titration_log t JOIN compounds c ON c.id = t.compound_id ORDER BY t.changed_at DESC
-  `).all() as { at: string; compound: string; b: number; a2: number; notes: string }[])
-    .map((r) => ({ date: md(r.at), compound: r.compound, change: `${r.b}mg → ${r.a2}mg`, trigger: r.notes }));
+  `).all() as { id: number; at: string; compound: string; b: number; a2: number; notes: string }[])
+    .map((r) => ({ id: r.id, date: md(r.at), compound: r.compound, change: `${r.b}mg → ${r.a2}mg`, trigger: r.notes }));
 
+  const latestPanel = db.prepare('SELECT id FROM lab_panels ORDER BY drawn_at DESC LIMIT 1').get() as { id: number } | undefined;
   const labResults = (db.prepare(`
     SELECT marker, value, unit, range_low AS lo, range_high AS hi FROM lab_results
-    WHERE panel_id = (SELECT id FROM lab_panels ORDER BY drawn_at DESC LIMIT 1) ORDER BY id
-  `).all() as { marker: string; value: number; unit: string; lo: number; hi: number }[])
+    WHERE panel_id = ? ORDER BY id
+  `).all(latestPanel?.id ?? -1) as { marker: string; value: number; unit: string; lo: number; hi: number }[])
     .map((r) => ({
       marker: r.marker, value: `${r.value} ${r.unit}`.trim(), range: `${r.lo}–${r.hi}`,
       flagged: r.value < r.lo || r.value > r.hi,
@@ -175,6 +186,7 @@ export function getSnapshot(): Snapshot {
     session: { id: 'SB-00', clock: '03:14:09' },
     syncMeta: getSyncMeta(),
     catalog: getCatalog(),
+    labPanelId: latestPanel?.id,
   };
 }
 
@@ -209,6 +221,7 @@ export function getSyncMeta(): SyncMeta {
   const connections: ConnectionState[] = rows.map((r) => ({
     source: r.source as SourceId, status: r.status as SourceStatus,
     detail: r.detail ?? undefined, lastSyncAt: r.last_sync_at ?? undefined,
+    configured: r.source === 'strava' ? stravaConfigured() : undefined,
   }));
   return { connections };
 }

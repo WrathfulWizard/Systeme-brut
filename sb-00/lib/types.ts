@@ -15,14 +15,21 @@ export interface Insight {
   nodes: NodeGroup[];
 }
 
-export interface SetRow { date: string; exercise: string; set: string; weight: string; reps: string; }
+// rows carry their DB id + raw values so the UI can edit/delete them
+export interface SetRow {
+  id: number; date: string; exercise: string; set: string; weight: string; reps: string;
+  iso: string; setKind: SetKind; weightKg: number; repsN: number;
+}
 export interface PrRow { exercise: string; prVolume: number; lastBeat: string; status: string; }
 export interface Bar { lift: string; value: number; }
 export interface CardioPoint { date: string; distance: number; }
 export interface RunRow { date: string; distance: string; pace: string; source: string; }
 export interface RegimenRow { compound: string; dose: string; route: string; }
-export interface AdminRow { date: string; compound: string; dose: string; route: string; }
-export interface TitrationRow { date: string; compound: string; change: string; trigger: string; }
+export interface AdminRow {
+  id: number; date: string; compound: string; dose: string; route: string;
+  iso: string; doseMg: number; routeRaw: string;
+}
+export interface TitrationRow { id: number; date: string; compound: string; change: string; trigger: string; }
 export interface LabResult { marker: string; value: string; range: string; flagged: boolean; }
 export interface SerumPoint { day: string; mg: number; }
 export interface TotalRow { nutrient: string; today: string; target: string; delta: string; }
@@ -52,6 +59,8 @@ export interface Snapshot {
   syncMeta: SyncMeta;
   /** lookup lists for the in-app log forms */
   catalog: { exercises: string[]; compounds: string[] };
+  /** id of the latest lab panel (for delete) */
+  labPanelId?: number;
 }
 
 /* ---- manual logging inputs (write path) --------------------------------- */
@@ -74,6 +83,7 @@ export interface ConnectionState {
   status: SourceStatus;
   detail?: string;        // account label, last error, etc.
   lastSyncAt?: string;    // ISO
+  configured?: boolean;   // strava: are Client ID/Secret saved?
 }
 
 export interface SyncMeta {
@@ -94,7 +104,15 @@ export interface SbBridge {
   onSyncUpdate(cb: (meta: SyncMeta) => void): () => void;
   /* manual logging — each returns a fresh snapshot so the UI updates live */
   addSet(input: LiftInput): Promise<Snapshot>;
+  updateSet(id: number, input: LiftInput): Promise<Snapshot>;
+  deleteSet(id: number): Promise<Snapshot>;
   addAdministration(input: AdminInput): Promise<Snapshot>;
+  updateAdministration(id: number, input: AdminInput): Promise<Snapshot>;
+  deleteAdministration(id: number): Promise<Snapshot>;
   addTitration(input: TitrationInput): Promise<Snapshot>;
+  deleteTitration(id: number): Promise<Snapshot>;
   addLabPanel(input: LabPanelInput): Promise<Snapshot>;
+  deleteLabPanel(id: number): Promise<Snapshot>;
+  /* strava app credentials (so connecting needs no env vars) */
+  saveStravaApp(clientId: string, clientSecret: string): Promise<SyncMeta>;
 }

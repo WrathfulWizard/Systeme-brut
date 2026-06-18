@@ -5,10 +5,14 @@ import Ascii from '@/components/Ascii';
 import { Feed } from '@/components/Feed';
 import { LiftLogForm } from '@/components/LogForms';
 import { asciiBars } from '@/lib/ascii';
-import { useSnapshot } from '../providers';
+import { useSb } from '../providers';
+import { useState } from 'react';
+import type { SetRow } from '@/lib/types';
 
 export default function Lifts() {
-  const { insights, recentSets, prLog, tonnage } = useSnapshot();
+  const { snapshot, deleteSet, isDesktop } = useSb();
+  const { insights, recentSets, prLog, tonnage } = snapshot;
+  const [editing, setEditing] = useState<SetRow | null>(null);
   const tonnageRows = asciiBars(tonnage.map((t) => ({ label: t.lift, value: t.value, display: `${t.value}kg` })));
   const trainingInfo = insights.filter((i) => i.nodes.includes('training'));
   const flagCount = insights.filter((i) => i.severity === 'flag').length;
@@ -21,14 +25,20 @@ export default function Lifts() {
         side={<Feed items={trainingInfo} />}
       >
         <div className="block">
-          <LiftLogForm />
+          <LiftLogForm key={editing?.id ?? 'new'} editing={editing} onDone={() => setEditing(null)} />
           <p className="eyebrow">Recent sets</p>
           <table>
             <tbody>
-              <tr><th>Date</th><th>Exercise</th><th>Set</th><th>Weight</th><th>Reps</th></tr>
-              {recentSets.map((s, i) => (
-                <tr key={i}>
+              <tr><th>Date</th><th>Exercise</th><th>Set</th><th>Weight</th><th>Reps</th>{isDesktop && <th />}</tr>
+              {recentSets.map((s) => (
+                <tr key={s.id} className={editing?.id === s.id ? 'prrow' : undefined}>
                   <td>{s.date}</td><td>{s.exercise}</td><td>{s.set}</td><td>{s.weight}</td><td>{s.reps}</td>
+                  {isDesktop && (
+                    <td className="rowact">
+                      <button className="rowbtn" onClick={() => setEditing(s)}>edit</button>
+                      <button className="rowbtn del" onClick={() => deleteSet(s.id)}>del</button>
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>

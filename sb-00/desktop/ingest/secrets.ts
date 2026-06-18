@@ -20,9 +20,14 @@ export interface CronometerSecret {
   username: string;
   password: string;         // required by the unofficial export client (no API)
 }
+export interface StravaApp {
+  clientId: string;
+  clientSecret: string;     // user's own Strava API application credentials
+}
 
 interface Vault {
   strava?: StravaSecret;
+  stravaApp?: StravaApp;
   cronometer?: CronometerSecret;
 }
 
@@ -59,6 +64,9 @@ function persist(v: Vault) {
 
 export function getStrava() { return load().strava; }
 export function setStrava(s: StravaSecret | undefined) { const v = load(); v.strava = s; persist(v); }
+
+export function getStravaApp() { return load().stravaApp; }
+export function setStravaApp(a: StravaApp | undefined) { const v = load(); v.stravaApp = a; persist(v); }
 
 export function getCronometer() { return load().cronometer; }
 export function setCronometer(c: CronometerSecret | undefined) { const v = load(); v.cronometer = c; persist(v); }

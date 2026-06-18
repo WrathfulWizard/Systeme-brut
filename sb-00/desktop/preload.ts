@@ -21,9 +21,16 @@ const bridge: SbBridge = {
     return () => ipcRenderer.removeListener('sb:syncUpdate', listener);
   },
   addSet: (input: LiftInput) => ipcRenderer.invoke('sb:addSet', input),
+  updateSet: (id: number, input: LiftInput) => ipcRenderer.invoke('sb:updateSet', id, input),
+  deleteSet: (id: number) => ipcRenderer.invoke('sb:deleteSet', id),
   addAdministration: (input: AdminInput) => ipcRenderer.invoke('sb:addAdministration', input),
+  updateAdministration: (id: number, input: AdminInput) => ipcRenderer.invoke('sb:updateAdministration', id, input),
+  deleteAdministration: (id: number) => ipcRenderer.invoke('sb:deleteAdministration', id),
   addTitration: (input: TitrationInput) => ipcRenderer.invoke('sb:addTitration', input),
+  deleteTitration: (id: number) => ipcRenderer.invoke('sb:deleteTitration', id),
   addLabPanel: (input: LabPanelInput) => ipcRenderer.invoke('sb:addLabPanel', input),
+  deleteLabPanel: (id: number) => ipcRenderer.invoke('sb:deleteLabPanel', id),
+  saveStravaApp: (clientId: string, clientSecret: string) => ipcRenderer.invoke('sb:saveStravaApp', clientId, clientSecret),
 };
 
 contextBridge.exposeInMainWorld('sb', bridge);

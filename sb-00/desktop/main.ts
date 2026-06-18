@@ -7,9 +7,12 @@ import { extname } from 'node:path';
 
 import { openDb } from './db/index';
 import { getSnapshot } from './db/queries';
-import { addSet, addAdministration, addTitration, addLabPanel } from './db/mutations';
+import {
+  addSet, updateSet, deleteSet, addAdministration, updateAdministration, deleteAdministration,
+  addTitration, deleteTitration, addLabPanel, deleteLabPanel,
+} from './db/mutations';
 import type { LiftInput, AdminInput, TitrationInput, LabPanelInput } from '../lib/types';
-import { initSecrets, setCronometer } from './ingest/secrets';
+import { initSecrets, setCronometer, setStravaApp } from './ingest/secrets';
 import { startIngestion, stopIngestion, syncNow, disconnect, meta } from './ingest/index';
 import { buildAuthUrl, exchangeCode, syncStrava, STRAVA_REDIRECT_PORT } from './ingest/strava';
 import { syncCronometer } from './ingest/cronometer';
@@ -86,9 +89,19 @@ function registerIpc() {
   ipcMain.handle('sb:syncNow', (_e, source?: SourceId) => syncNow(source));
 
   ipcMain.handle('sb:addSet', (_e, input: LiftInput) => { addSet(input); return getSnapshot(); });
+  ipcMain.handle('sb:updateSet', (_e, id: number, input: LiftInput) => { updateSet(id, input); return getSnapshot(); });
+  ipcMain.handle('sb:deleteSet', (_e, id: number) => { deleteSet(id); return getSnapshot(); });
   ipcMain.handle('sb:addAdministration', (_e, input: AdminInput) => { addAdministration(input); return getSnapshot(); });
+  ipcMain.handle('sb:updateAdministration', (_e, id: number, input: AdminInput) => { updateAdministration(id, input); return getSnapshot(); });
+  ipcMain.handle('sb:deleteAdministration', (_e, id: number) => { deleteAdministration(id); return getSnapshot(); });
   ipcMain.handle('sb:addTitration', (_e, input: TitrationInput) => { addTitration(input); return getSnapshot(); });
+  ipcMain.handle('sb:deleteTitration', (_e, id: number) => { deleteTitration(id); return getSnapshot(); });
   ipcMain.handle('sb:addLabPanel', (_e, input: LabPanelInput) => { addLabPanel(input); return getSnapshot(); });
+  ipcMain.handle('sb:deleteLabPanel', (_e, id: number) => { deleteLabPanel(id); return getSnapshot(); });
+  ipcMain.handle('sb:saveStravaApp', (_e, clientId: string, clientSecret: string) => {
+    setStravaApp({ clientId: clientId.trim(), clientSecret: clientSecret.trim() });
+    return meta();
+  });
 }
 
 async function createWindow() {
