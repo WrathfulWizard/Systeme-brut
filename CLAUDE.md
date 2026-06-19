@@ -32,6 +32,11 @@ first.**
   `secrets.bin` — **never** in SQLite or committed.
 - Never commit secrets (Supabase keys, Strava tokens, `secrets.bin`, `*.db`).
 
+## Repo hygiene
+
+`main` must always reflect the latest shipped version — after pushing feature
+work, merge it into `main` so the repo's default branch is never stale.
+
 ## Coding stance (ponytail)
 
 Write only what's necessary. Before implementing, walk the ladder: (1) does this
