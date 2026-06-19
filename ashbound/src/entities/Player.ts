@@ -2,6 +2,7 @@ import Phaser from "phaser";
 import { PLAYER } from "../config";
 import type { InputState } from "../systems/input";
 import { playerState } from "../systems/state";
+import { sfx } from "../systems/audio";
 import type { GameScene } from "../scenes/GameScene";
 
 type Mode = "free" | "roll" | "attack" | "dead";
@@ -157,6 +158,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this.mode = "roll";
     this.rollElapsed = 0;
     this.setRotation(0);
+    sfx.dodge();
   }
 
   private updateRoll(dt: number, body: Phaser.Physics.Arcade.Body): void {
@@ -183,7 +185,13 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this.hitThisSwing.clear();
     (this.body as Phaser.Physics.Arcade.Body).setVelocity(0, 0);
     this.applyAnim(false);
+    sfx.swing();
+    // small commitment lunge in the swing direction
+    this.busyLungeX = Math.cos(this.attackAngle) * 60;
+    this.busyLungeY = Math.sin(this.attackAngle) * 60;
   }
+  private busyLungeX = 0;
+  private busyLungeY = 0;
 
   private updateAttack(dt: number, body: Phaser.Physics.Arcade.Body): void {
     body.velocity.scale(0.7);
@@ -197,6 +205,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
       this.attackPhase = "active";
       this.attackT = PLAYER.attackActive;
       this.world.spawnSlash(this.x, this.y, this.attackAngle);
+      body.setVelocity(this.busyLungeX, this.busyLungeY);
       this.resolveSwing();
     } else if (this.attackPhase === "active") {
       this.attackPhase = "recovery";
@@ -214,6 +223,8 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this.applyAnim(false);
     this.setTint(0x6fe08a);
     this.scene.time.delayedCall(450, () => this.active && this.clearTint());
+    sfx.estus();
+    this.world.spark(this.x, this.y - 8, 0x6fe08a);
   }
 
   /** Lava / hazards — bleeds through i-frames but on a throttle (scene-driven). */
@@ -240,6 +251,9 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
         enemy.takeDamage(PLAYER.attackDamage, this.x, this.y);
         this.world.hitStop(60);
         this.world.shake(0.004, 80);
+        this.world.spark(enemy.x, enemy.y, 0xffe0a0);
+        this.world.popNumber(enemy.x, enemy.y, PLAYER.attackDamage, 0xffe6b0);
+        sfx.hit();
       }
     }
   }
@@ -247,6 +261,8 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   takeDamage(amount: number, srcX: number, srcY: number): void {
     if (this.mode === "dead" || this.invulnerable) return;
     this.hp = Math.max(0, this.hp - amount);
+    sfx.hurt();
+    this.world.spark(this.x, this.y - 6, 0xc83838);
     this.invulnT = PLAYER.invulnAfterHit;
     this.hitstunT = 0.16;
     this.setTintFill(0xffffff);
@@ -265,6 +281,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this.setRotation(0);
     (this.body as Phaser.Physics.Arcade.Body).setVelocity(0, 0);
     this.scene.tweens.add({ targets: this, alpha: 0.25, angle: 90, duration: 600 });
+    sfx.playerDie();
     this.world.onPlayerDeath();
   }
 

@@ -51,8 +51,7 @@ export class BootScene extends Phaser.Scene {
 
     void T; // tile size is consumed by the world
 
-    this.scene.start("Game");
-    this.scene.launch("UI");
+    this.scene.start("Title");
   }
 
   private makeShadow(): void {

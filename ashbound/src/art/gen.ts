@@ -349,6 +349,29 @@ export function generateProps(scene: Phaser.Scene): void {
       ctx.fillRect(Math.floor(r * 64), Math.floor(mulberry32(80 + i)() * 80), 2, 2);
     }
   });
+
+  // Particle motes.
+  bakeCanvas(scene, "fx_ash", 2, 2, (ctx) => {
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, 2, 2);
+  });
+  bakeCanvas(scene, "fx_spark", 4, 4, (ctx) => {
+    const g = ctx.createRadialGradient(2, 2, 0, 2, 2, 2);
+    g.addColorStop(0, "rgba(255,255,255,1)");
+    g.addColorStop(1, "rgba(255,255,255,0)");
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, 4, 4);
+  });
+
+  // Cinematic vignette (stretched to the screen).
+  bakeCanvas(scene, "fx_vignette", 256, 160, (ctx) => {
+    const g = ctx.createRadialGradient(128, 80, 40, 128, 80, 150);
+    g.addColorStop(0, "rgba(0,0,0,0)");
+    g.addColorStop(0.7, "rgba(0,0,0,0)");
+    g.addColorStop(1, "rgba(0,0,0,0.6)");
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, 256, 160);
+  });
 }
 
 // ── Boss: The Cinder Lord ───────────────────────────────────────────────────

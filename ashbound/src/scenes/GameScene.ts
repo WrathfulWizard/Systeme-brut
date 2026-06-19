@@ -8,6 +8,7 @@ import { playerState, flash, zoneCard } from "../systems/state";
 import { generateWorld, type WorldData, type Bonfire } from "../world/worldgen";
 import type { TileIndex } from "../art/gen";
 import type { Biome } from "../world/biomes";
+import { initAudio, sfx } from "../systems/audio";
 
 export interface Damageable {
   x: number;
@@ -32,6 +33,8 @@ export class GameScene extends Phaser.Scene {
   private boss!: Boss;
   private reticle!: Phaser.GameObjects.Arc;
   private ambient!: Phaser.GameObjects.Rectangle;
+  private vignette!: Phaser.GameObjects.Image;
+  private ashEmitter!: Phaser.GameObjects.Particles.ParticleEmitter;
   private bloodstain: Phaser.GameObjects.Image | null = null;
   private bloodPos: { x: number; y: number } | null = null;
   private hitStopT = 0;
@@ -101,7 +104,35 @@ export class GameScene extends Phaser.Scene {
       .setOrigin(0)
       .setScrollFactor(0)
       .setDepth(40000);
-    this.scale.on("resize", (s: Phaser.Structs.Size) => this.ambient.setSize(s.width, s.height));
+    // cinematic vignette (screen space, under the colour grade)
+    this.vignette = this.add
+      .image(0, 0, "fx_vignette")
+      .setOrigin(0)
+      .setScrollFactor(0)
+      .setDepth(39000)
+      .setDisplaySize(this.scale.width, this.scale.height);
+    this.scale.on("resize", (s: Phaser.Structs.Size) => {
+      this.ambient.setSize(s.width, s.height);
+      this.vignette.setDisplaySize(s.width, s.height);
+    });
+
+    // drifting ash that follows the camera
+    this.ashEmitter = this.add.particles(0, 0, "fx_ash", {
+      follow: this.player,
+      followOffset: { x: 0, y: -130 },
+      x: { min: -260, max: 260 },
+      lifespan: 4200,
+      speedY: { min: 8, max: 22 },
+      speedX: { min: -10, max: 10 },
+      scale: { min: 0.5, max: 1.2 },
+      alpha: { start: 0.4, end: 0 },
+      tint: 0x8a829a,
+      frequency: 130,
+      quantity: 1,
+    });
+    this.ashEmitter.setDepth(35000);
+
+    initAudio();
 
     const cam = this.cameras.main;
     cam.setBounds(0, 0, px, py);
@@ -157,7 +188,71 @@ export class GameScene extends Phaser.Scene {
         .setAlpha(0.55)
         .setBlendMode(Phaser.BlendModes.ADD)
         .setDepth(b.y - 1);
+      this.add
+        .particles(b.x, b.y - 4, "fx_spark", {
+          speedY: { min: -34, max: -14 },
+          speedX: { min: -6, max: 6 },
+          lifespan: 1200,
+          scale: { start: 0.6, end: 0 },
+          alpha: { start: 0.9, end: 0 },
+          tint: [0xf2c14e, 0xd8702a],
+          frequency: 180,
+          quantity: 1,
+          blendMode: Phaser.BlendModes.ADD,
+        })
+        .setDepth(b.y + 2);
     }
+  }
+
+  // ── juice helpers used by entities ────────────────────────────────────────
+  spark(x: number, y: number, color: number): void {
+    const e = this.add.particles(x, y, "fx_spark", {
+      speed: { min: 40, max: 150 },
+      lifespan: 280,
+      scale: { start: 0.9, end: 0 },
+      alpha: { start: 1, end: 0 },
+      tint: color,
+      blendMode: Phaser.BlendModes.ADD,
+      emitting: false,
+    });
+    e.setDepth(60000);
+    e.explode(9);
+    this.time.delayedCall(320, () => e.destroy());
+  }
+
+  deathAsh(x: number, y: number, tint: number): void {
+    const e = this.add.particles(x, y, "fx_ash", {
+      speed: { min: 20, max: 90 },
+      gravityY: 40,
+      lifespan: 700,
+      scale: { start: 1.4, end: 0 },
+      alpha: { start: 0.9, end: 0 },
+      tint: [tint, 0x2a2730],
+      emitting: false,
+    });
+    e.setDepth(59000);
+    e.explode(20);
+    this.time.delayedCall(760, () => e.destroy());
+  }
+
+  popNumber(x: number, y: number, amount: number, color: number): void {
+    const txt = this.add
+      .text(x + (Math.random() - 0.5) * 8, y - 14, `${Math.round(amount)}`, {
+        fontFamily: "monospace",
+        fontSize: "9px",
+        color: "#" + color.toString(16).padStart(6, "0"),
+        stroke: "#000",
+        strokeThickness: 2,
+      })
+      .setOrigin(0.5)
+      .setDepth(61000);
+    this.tweens.add({
+      targets: txt,
+      y: y - 34,
+      alpha: 0,
+      duration: 620,
+      onComplete: () => txt.destroy(),
+    });
   }
 
   private fogGate!: Phaser.GameObjects.Image;
@@ -222,9 +317,10 @@ export class GameScene extends Phaser.Scene {
   }
 
   onEnemyDown(runes: number, x: number, y: number): void {
-    void x;
-    void y;
     playerState.runes += runes;
+    sfx.enemyDie();
+    sfx.rune();
+    this.deathAsh(x, y, 0x6b6478);
     if (this.lockTarget && !this.lockTarget.active) this.lockTarget = null;
     playerState.enemiesLeft = this.enemies.countActive(true);
   }
@@ -232,6 +328,9 @@ export class GameScene extends Phaser.Scene {
   onBossDown(runes: number): void {
     playerState.runes += runes;
     playerState.bossFrac = -1;
+    sfx.bossDie();
+    sfx.setBoss(false);
+    this.deathAsh(this.boss.x, this.boss.y, 0xd8702a);
     this.fogGate?.destroy();
     flash(this.time.now, "THE CINDER LORD FALLS", 4200);
     this.time.delayedCall(2400, () => zoneCard(this.time.now, "The flame is yours", "Ashbound — demo complete", 6000));
@@ -281,6 +380,7 @@ export class GameScene extends Phaser.Scene {
 
   // ── bonfire menu ──────────────────────────────────────────────────────────
   private openRest(b: Bonfire): void {
+    sfx.rest();
     this.checkpoint = b;
     this.player.respawn(b.x, b.y);
     playerState.estus = playerState.estusMax;
@@ -385,9 +485,18 @@ export class GameScene extends Phaser.Scene {
     const input = this.input2.sample();
 
     if (playerState.menuOpen) {
-      if (input.upPressed) playerState.menuIndex = (playerState.menuIndex + 2) % 3;
-      if (input.downPressed) playerState.menuIndex = (playerState.menuIndex + 1) % 3;
-      if (input.interactPressed) this.menuConfirm();
+      if (input.upPressed) {
+        playerState.menuIndex = (playerState.menuIndex + 2) % 3;
+        sfx.uiMove();
+      }
+      if (input.downPressed) {
+        playerState.menuIndex = (playerState.menuIndex + 1) % 3;
+        sfx.uiMove();
+      }
+      if (input.interactPressed) {
+        sfx.uiSelect();
+        this.menuConfirm();
+      }
       return;
     }
 
@@ -407,6 +516,7 @@ export class GameScene extends Phaser.Scene {
     if (this.fogGate && this.fogGate.active) {
       if (Phaser.Math.Distance.Between(this.player.x, this.player.y, this.bossArenaCenter.x, this.bossArenaCenter.y) < 120) {
         this.boss.activate();
+        sfx.setBoss(true);
         zoneCard(this.time.now, "The Cinder Lord", "guardian of the last flame", 3000);
         this.tweens.add({ targets: this.fogGate, alpha: 0, duration: 600, onComplete: () => this.fogGate.destroy() });
       }
@@ -442,6 +552,7 @@ export class GameScene extends Phaser.Scene {
       this.bloodstain?.destroy();
       this.bloodstain = null;
       this.bloodPos = null;
+      sfx.rune();
       flash(this.time.now, "Runes reclaimed", 1500);
     }
 

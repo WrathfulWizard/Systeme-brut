@@ -53,8 +53,14 @@ announced by an **Elden-Ring-style title card** as you cross into it.
 - **Hazards** — lava in the Highlands burns through your guard.
 - **Save/continue** — runes, level and last ember persist between runs.
 - **2.5D depth** — everything Y-sorted with soft shadows and additive lighting.
-- **100% generated art** (`src/art/`) — characters, a full biome tileset, props
-  and the boss are all baked procedurally in code. Zero external asset files.
+- **Atmosphere & juice** — a title screen, drifting ash, bonfire embers, a
+  cinematic vignette, hit sparks, floating damage numbers, attack lunge and
+  hit-stop.
+- **Procedural audio** (`src/systems/audio.ts`) — every sound is synthesised at
+  runtime via Web Audio: sword swings, hits, dodges, estus, a low ambient drone
+  that tenses for the boss fight. Zero audio files, like the art.
+- **100% generated content** (`src/art/`) — characters, a full biome tileset,
+  props, the boss, and all sound are produced in code. Zero external asset files.
 
 ## Architecture
 

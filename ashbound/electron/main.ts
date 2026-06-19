@@ -57,7 +57,7 @@ function runSmoke(win: BrowserWindow): void {
     // Drive synthetic input so combat / menu / interaction paths run too.
     const sim = `
       (function(){
-        var K={J:74,SPACE:32,Q:81,TAB:9,E:69,W:87,S:83,D:68,A:65};
+        var K={ENTER:13,J:74,SPACE:32,Q:81,TAB:9,E:69,W:87,S:83,D:68,A:65};
         function press(code){
           var kc=K[code];
           ['keydown','keyup'].forEach(function(t){
@@ -66,9 +66,9 @@ function runSmoke(win: BrowserWindow): void {
         }
         var shot = ${process.env.ASHBOUND_SHOT ? "true" : "false"};
         var seq = shot
-          ? ['D','D','D','D','D','D','D','D','J','D','D','J','SPACE','D','J']
-          : ['D','D','J','SPACE','Q','TAB','J','E','S','W','E','J'];
-        seq.forEach(function(c,i){ setTimeout(function(){ try{press(c);}catch(e){} }, 800+i*150); });
+          ? ['ENTER','D','D','D','D','J','D','D','J','SPACE','D','J','TAB']
+          : ['ENTER','J','SPACE','Q','TAB','J','E','S','W','E','J'];
+        seq.forEach(function(c,i){ setTimeout(function(){ try{press(c);}catch(e){} }, 700+i*170); });
       })();
     `;
     win.webContents.executeJavaScript(sim).catch(() => {});

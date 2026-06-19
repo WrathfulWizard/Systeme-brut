@@ -1,6 +1,7 @@
 import Phaser from "phaser";
 import { COLORS } from "./config";
 import { BootScene } from "./scenes/BootScene";
+import { TitleScene } from "./scenes/TitleScene";
 import { GameScene } from "./scenes/GameScene";
 import { UIScene } from "./scenes/UIScene";
 
@@ -32,7 +33,7 @@ const config: Phaser.Types.Core.GameConfig = {
     default: "arcade",
     arcade: { gravity: { x: 0, y: 0 }, debug: false },
   },
-  scene: [BootScene, GameScene, UIScene],
+  scene: [BootScene, TitleScene, GameScene, UIScene],
 };
 
 new Phaser.Game(config);

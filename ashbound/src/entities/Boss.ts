@@ -2,6 +2,7 @@ import Phaser from "phaser";
 import type { GameScene } from "../scenes/GameScene";
 import type { Player } from "./Player";
 import { playerState } from "../systems/state";
+import { sfx } from "../systems/audio";
 
 type Mode = "sleep" | "chase" | "wind" | "slam" | "recover" | "dead";
 
@@ -118,6 +119,7 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
           this.setTexture("boss_3");
           this.aoe.setFillStyle(0xe0157a, 0.4);
           this.world.shake(0.01, 200);
+          sfx.bossSlam();
         }
         break;
       case "slam":
