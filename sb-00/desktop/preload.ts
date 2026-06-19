@@ -14,6 +14,7 @@ const bridge: SbBridge = {
   getConnections: () => ipcRenderer.invoke('sb:getConnections'),
   connectStrava: () => ipcRenderer.invoke('sb:connectStrava'),
   connectCronometer: (username, password) => ipcRenderer.invoke('sb:connectCronometer', username, password),
+  connectCronometerBrowser: (username?: string, password?: string) => ipcRenderer.invoke('sb:connectCronometerBrowser', username, password),
   importCronometerCsv: (csv: string) => ipcRenderer.invoke('sb:importCronometerCsv', csv),
   disconnect: (source: SourceId) => ipcRenderer.invoke('sb:disconnect', source),
   syncNow: (source?: SourceId) => ipcRenderer.invoke('sb:syncNow', source),

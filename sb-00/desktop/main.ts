@@ -16,10 +16,11 @@ import {
 import { agentStatus, setAgentModel, agentChat, agentReview, agentSweep, type StreamHandlers } from './agent/ollama';
 import { ensureOllamaRunning, pullDefaultIfEmpty } from './agent/launch';
 import type { LiftInput, AdminInput, TitrationInput, LabPanelInput, ProtocolInput, ChatMessage, BodyMetricInput } from '../lib/types';
-import { initSecrets, setCronometer, setStravaApp } from './ingest/secrets';
+import { initSecrets, setCronometer, setCronometerSession, setStravaApp } from './ingest/secrets';
 import { startIngestion, stopIngestion, syncNow, disconnect, meta } from './ingest/index';
 import { buildAuthUrl, exchangeCode, syncStrava, STRAVA_REDIRECT_PORT } from './ingest/strava';
-import { syncCronometer, importCronometerCsv } from './ingest/cronometer';
+import { syncCronometerAny, importCronometerCsv, registerCronometerSessionSync } from './ingest/cronometer';
+import { cronometerBrowserLogin, cronometerSessionSync, clearCronometerSession } from './ingest/cronometer-browser';
 import type { SourceId } from '../lib/types';
 
 const DEV = !!process.env.SB_DEV;
@@ -86,14 +87,27 @@ function registerIpc() {
   ipcMain.handle('sb:connectStrava', () => connectStravaFlow());
   ipcMain.handle('sb:connectCronometer', async (_e, username: string, password: string) => {
     setCronometer({ username, password });
-    try { await syncCronometer(); } catch { /* recorded as error state */ }
+    try { await syncCronometerAny(); } catch { /* recorded as error state */ }
+    return meta().connections.find((c) => c.source === 'cronometer')!;
+  });
+  // Browser sign-in: a real Chromium window beats Cronometer's bot protection;
+  // the session persists, so it's effectively one-time. Optional credentials are
+  // stored (encrypted) to prefill the form on the rare re-link.
+  ipcMain.handle('sb:connectCronometerBrowser', async (_e, username?: string, password?: string) => {
+    if (username && password) setCronometer({ username, password });
+    await cronometerBrowserLogin();
+    setCronometerSession({ linkedAt: new Date().toISOString() });
+    try { await syncCronometerAny(); } catch { /* error recorded on the connection row */ }
     return meta().connections.find((c) => c.source === 'cronometer')!;
   });
   ipcMain.handle('sb:importCronometerCsv', (_e, csv: string) => {
     try { const days = importCronometerCsv(csv); return { ok: true, days }; }
     catch (e) { return { ok: false, days: 0, error: (e as Error).message }; }
   });
-  ipcMain.handle('sb:disconnect', (_e, source: SourceId) => disconnect(source));
+  ipcMain.handle('sb:disconnect', async (_e, source: SourceId) => {
+    if (source === 'cronometer') { setCronometerSession(undefined); await clearCronometerSession(); }
+    return disconnect(source);
+  });
   ipcMain.handle('sb:syncNow', (_e, source?: SourceId) => syncNow(source));
 
   ipcMain.handle('sb:addSet', (_e, input: LiftInput) => { addSet(input); return getSnapshot(); });
@@ -157,6 +171,7 @@ async function createWindow() {
 app.whenReady().then(() => {
   openDb(join(app.getPath('userData'), 'systeme-brut.db'));
   initSecrets(join(app.getPath('userData'), 'secrets.bin'));
+  registerCronometerSessionSync(cronometerSessionSync);
   registerIpc();
   startIngestion((m) => win?.webContents.send('sb:syncUpdate', m));
   // Keep the local model alive without a separate terminal. If Ollama is up but

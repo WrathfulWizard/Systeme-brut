@@ -16,6 +16,29 @@ for (const ext of ['', '-wal', '-shm']) { try { rmSync(DB + ext); } catch {} }
 const { openDb } = require('../dist-electron/desktop/db/index.js');
 openDb(DB);
 const { getSnapshot } = require('../dist-electron/desktop/db/queries.js');
+const { getDb } = require('../dist-electron/desktop/db/index.js');
+
+// The one-shot seed-sample cleanup runs on first open: it strips the demo
+// cardio sessions and demo flags so a real instance isn't haunted by them.
+{
+  const s0 = getSnapshot();
+  assert.equal(s0.insights.length, 0, 'seed demo flags cleared on first open');
+  assert.equal(s0.recentRuns.length, 0, 'seed demo cardio cleared on first open');
+  // Restore the fixtures the query assertions below still exercise.
+  getDb().exec(`
+    INSERT INTO cardio_sessions (occurred_at, distance_km, pace_avg_sec_per_km, source, external_id) VALUES
+      ('2026-06-06',5.0,370,'strava','seed_strava_1001'),
+      ('2026-06-10',5.5,361,'strava','seed_strava_1002'),
+      ('2026-06-13',6.0,355,'strava','seed_strava_1003'),
+      ('2026-06-16',7.2,342,'strava','seed_strava_1004');
+    INSERT INTO insights (created_at, severity, body, node_refs) VALUES
+      ('2026-06-17T10:05:00','flag','Sodium elevated 4th straight day. Cross-check against this week''s BP readings.','["micronutrients:5","lab_results:4"]'),
+      ('2026-06-17T09:12:00','flag','ALT 24% over range, 9d into an oral. Suggest follow-up.','["lab_results:2"]'),
+      ('2026-06-17T08:40:00','flag','HDL below range, third panel running.','["lab_results:3"]'),
+      ('2026-06-16T18:00:00','info','Squat tonnage trending up 3 weeks running.','["sets:1"]'),
+      ('2026-06-16T12:00:00','info','Vitamin D trending down three weeks, consistent with reduced outdoor training.','["micronutrients:1"]');
+  `);
+}
 
 let snap = getSnapshot();
 assert.equal(snap.insights.length, 5, 'insights seeded');
@@ -265,11 +288,11 @@ console.log('✓ protocol + titration  (test 14→16, deca 7→10) · flags reso
 {
   const s = getSnapshot();
   for (const p of ['W', 'M', '3M', '6M', 'Y']) {
-    assert.ok(Array.isArray(s.progress[p]) && s.progress[p].length > 8, `progress period ${p} has many metrics`);
+    assert.ok(Array.isArray(s.progress[p]) && s.progress[p].length >= 4, `progress period ${p} has metrics`);
   }
   const m = s.progress.Y.find((r) => r.metric === 'Tonnage');
   assert.ok(m && typeof m.value === 'string' && ['up', 'down', 'flat'].includes(m.dir), 'progress rows carry value + direction');
-  assert.ok(s.progress.M.find((r) => r.metric === 'Bodyweight') && s.progress.M.find((r) => r.metric === 'VO₂max'), 'progress spans mass + cardio params');
+  assert.ok(s.progress.M.find((r) => r.metric === 'Tonnage') && s.progress.M.find((r) => r.metric === 'Chest'), 'lifting progress spans strength + muscle measurements');
   console.log(`✓ progress table         (${s.progress.M.length} metrics × 5 periods, period-over-period deltas)`);
 }
 

@@ -29,6 +29,9 @@ interface Vault {
   strava?: StravaSecret;
   stravaApp?: StravaApp;
   cronometer?: CronometerSecret;
+  /** Marker that the browser-session login is the active Cronometer path. The
+   *  cookies themselves live in the Electron 'persist:cronometer' partition. */
+  cronometerSession?: { linkedAt: string };
 }
 
 let secretsPath = '';
@@ -70,3 +73,6 @@ export function setStravaApp(a: StravaApp | undefined) { const v = load(); v.str
 
 export function getCronometer() { return load().cronometer; }
 export function setCronometer(c: CronometerSecret | undefined) { const v = load(); v.cronometer = c; persist(v); }
+
+export function getCronometerSession() { return load().cronometerSession; }
+export function setCronometerSession(s: { linkedAt: string } | undefined) { const v = load(); v.cronometerSession = s; persist(v); }
