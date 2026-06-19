@@ -32,6 +32,9 @@ interface Vault {
   /** Marker that the browser-session login is the active Cronometer path. The
    *  cookies themselves live in the Electron 'persist:cronometer' partition. */
   cronometerSession?: { linkedAt: string };
+  /** Bearer token the Apple Health receiver requires (gates the LAN + tunnel
+   *  endpoint so an internet-exposed receiver can't be written to anonymously). */
+  healthToken?: string;
 }
 
 let secretsPath = '';
@@ -76,3 +79,11 @@ export function setCronometer(c: CronometerSecret | undefined) { const v = load(
 
 export function getCronometerSession() { return load().cronometerSession; }
 export function setCronometerSession(s: { linkedAt: string } | undefined) { const v = load(); v.cronometerSession = s; persist(v); }
+
+export function getHealthToken() { return load().healthToken; }
+/** Return the receiver token, generating + persisting one on first use. */
+export function ensureHealthToken(gen: () => string): string {
+  const v = load();
+  if (!v.healthToken) { v.healthToken = gen(); persist(v); }
+  return v.healthToken;
+}

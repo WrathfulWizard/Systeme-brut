@@ -1,5 +1,6 @@
 import { createServer, type Server } from 'node:http';
 import { applyHealthExport } from './appleHealth';
+import { getHealthToken } from './secrets';
 import { RECEIVER_PORT, lanAddress, healthEndpoint } from './lan';
 
 export { RECEIVER_PORT, lanAddress, healthEndpoint };
@@ -23,7 +24,6 @@ let server: Server | null = null;
 
 export function startReceiver(onIngest?: () => void): Server {
   if (server) return server;
-  const token = process.env.HEALTH_INGEST_TOKEN;
 
   server = createServer((req, res) => {
     const cors = {
@@ -34,6 +34,10 @@ export function startReceiver(onIngest?: () => void): Server {
     if (req.method === 'OPTIONS') { res.writeHead(204, cors); res.end(); return; }
 
     if (req.method === 'POST' && req.url?.startsWith('/ingest/health')) {
+      // Always token-gated — the endpoint may be exposed to the internet via the
+      // tunnel, so an anonymous write must never be accepted. Read per-request so
+      // a freshly generated token takes effect without a restart.
+      const token = getHealthToken() ?? process.env.HEALTH_INGEST_TOKEN;
       if (token) {
         const auth = req.headers.authorization ?? '';
         if (auth !== `Bearer ${token}`) { res.writeHead(401, cors); res.end('unauthorized'); return; }
