@@ -17,7 +17,8 @@ import { getStrava, setStrava, getStravaApp, type StravaSecret } from './secrets
 
 export const STRAVA_REDIRECT_PORT = 8788;
 export const STRAVA_REDIRECT_URI = `http://127.0.0.1:${STRAVA_REDIRECT_PORT}/strava/callback`;
-const SCOPE = 'read,activity:read_all';
+// profile:read_all is required for the athlete's gear (shoes/bikes) + mileage.
+const SCOPE = 'read,activity:read_all,profile:read_all';
 
 function creds() {
   // prefer credentials saved in-app (Connections screen); fall back to env vars
@@ -160,15 +161,18 @@ export async function syncStrava(): Promise<number> {
 interface StravaGear { id: string; name: string; distance: number; primary?: boolean; retired?: boolean; }
 
 /**
- * Pull the detail for each gear id seen on imported activities and upsert it
- * into `gear` — this powers the running-shoe mileage table. Strava only returns
- * gear detail one id at a time (via /gear/{id}), so we fetch the distinct set.
+ * Pull the athlete's whole gear locker (shoes + bikes, each with all-time
+ * distance) from /athlete and upsert it into `gear` — this powers the
+ * running-shoe mileage table. The summary athlete carries the gear arrays
+ * directly when the token has profile:read_all, so a single request gets every
+ * shoe regardless of whether it's tagged on a recent activity. Reconnect Strava
+ * after an upgrade so the new scope is granted, or this comes back empty.
  */
 export async function syncStravaGear(token: string): Promise<number> {
   const db = getDb();
-  const ids = (db.prepare(
-    "SELECT DISTINCT gear_id FROM cardio_sessions WHERE gear_id IS NOT NULL AND gear_id <> ''",
-  ).all() as { gear_id: string }[]).map((r) => r.gear_id);
+  const res = await fetch('https://www.strava.com/api/v3/athlete', { headers: { authorization: `Bearer ${token}` } });
+  if (!res.ok) return 0;
+  const athlete = (await res.json()) as { shoes?: StravaGear[]; bikes?: StravaGear[] };
 
   const up = db.prepare(`
     INSERT INTO gear (external_id, name, kind, distance_m, retired, source)
@@ -177,13 +181,11 @@ export async function syncStravaGear(token: string): Promise<number> {
   `);
 
   let n = 0;
-  for (const id of ids) {
-    const res = await fetch(`https://www.strava.com/api/v3/gear/${id}`, { headers: { authorization: `Bearer ${token}` } });
-    if (!res.ok) continue;
-    const g = (await res.json()) as StravaGear;
-    const kind = id.startsWith('b') ? 'bike' : 'shoe'; // Strava prefixes bikes 'b', shoes 'g'
+  const upsert = (g: StravaGear, kind: 'shoe' | 'bike') => {
     up.run({ id: g.id, name: g.name, kind, dist: g.distance ?? 0, retired: g.retired ? 1 : 0 });
     n++;
-  }
+  };
+  for (const g of athlete.shoes ?? []) upsert(g, 'shoe');
+  for (const g of athlete.bikes ?? []) upsert(g, 'bike');
   return n;
 }

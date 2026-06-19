@@ -17,20 +17,15 @@ interface MetricDef {
   sql: string; // SELECT ... AS v ... WHERE <dateCol> >= ? AND <dateCol> < ?
 }
 
+// Lifting-only progress: strength + the tape measurements that track muscle
+// growth. Bodyweight/fat, intake, and cardio/VO₂max/RHR live on their own nodes.
 const METRICS: MetricDef[] = [
-  { metric: 'Bodyweight', unit: 'kg', dp: 1, upGood: true, sql: "SELECT AVG(value) AS v FROM wearable_readings WHERE metric='body_mass' AND substr(measured_at,1,10) >= ? AND substr(measured_at,1,10) < ?" },
-  { metric: 'Body fat', unit: '%', dp: 1, upGood: false, sql: "SELECT AVG(body_fat_pct) AS v FROM body_metrics WHERE measured_on >= ? AND measured_on < ?" },
-  { metric: 'Waist', unit: 'cm', dp: 1, upGood: false, sql: "SELECT AVG(waist_cm) AS v FROM body_metrics WHERE measured_on >= ? AND measured_on < ?" },
+  { metric: 'Tonnage', unit: 'kg', dp: 0, upGood: true, sql: "SELECT SUM(s.weight_kg*s.reps) AS v FROM sets s JOIN training_sessions ts ON ts.id=s.session_id WHERE substr(ts.occurred_at,1,10) >= ? AND substr(ts.occurred_at,1,10) < ?" },
+  { metric: 'Sessions', unit: '', dp: 0, upGood: true, sql: "SELECT COUNT(*) AS v FROM training_sessions WHERE substr(occurred_at,1,10) >= ? AND substr(occurred_at,1,10) < ?" },
   { metric: 'Chest', unit: 'cm', dp: 1, upGood: true, sql: "SELECT AVG(chest_cm) AS v FROM body_metrics WHERE measured_on >= ? AND measured_on < ?" },
   { metric: 'Arm', unit: 'cm', dp: 1, upGood: true, sql: "SELECT AVG(arm_cm) AS v FROM body_metrics WHERE measured_on >= ? AND measured_on < ?" },
   { metric: 'Thigh', unit: 'cm', dp: 1, upGood: true, sql: "SELECT AVG(thigh_cm) AS v FROM body_metrics WHERE measured_on >= ? AND measured_on < ?" },
-  { metric: 'Tonnage', unit: 'kg', dp: 0, upGood: true, sql: "SELECT SUM(s.weight_kg*s.reps) AS v FROM sets s JOIN training_sessions ts ON ts.id=s.session_id WHERE substr(ts.occurred_at,1,10) >= ? AND substr(ts.occurred_at,1,10) < ?" },
-  { metric: 'Sessions', unit: '', dp: 0, upGood: true, sql: "SELECT COUNT(*) AS v FROM training_sessions WHERE substr(occurred_at,1,10) >= ? AND substr(occurred_at,1,10) < ?" },
-  { metric: 'Calories', unit: 'kcal/d', dp: 0, upGood: true, sql: "SELECT AVG(calories_kcal) AS v FROM nutrition_logs WHERE meal IS NULL AND logged_on >= ? AND logged_on < ?" },
-  { metric: 'Protein', unit: 'g/d', dp: 0, upGood: true, sql: "SELECT AVG(protein_g) AS v FROM nutrition_logs WHERE meal IS NULL AND logged_on >= ? AND logged_on < ?" },
-  { metric: 'Cardio', unit: 'km', dp: 1, upGood: true, sql: "SELECT SUM(distance_km) AS v FROM cardio_sessions WHERE substr(occurred_at,1,10) >= ? AND substr(occurred_at,1,10) < ?" },
-  { metric: 'VO₂max', unit: '', dp: 1, upGood: true, sql: "SELECT AVG(value) AS v FROM wearable_readings WHERE metric='vo2_max' AND substr(measured_at,1,10) >= ? AND substr(measured_at,1,10) < ?" },
-  { metric: 'Resting HR', unit: 'bpm', dp: 0, upGood: false, sql: "SELECT AVG(value) AS v FROM wearable_readings WHERE metric='resting_heart_rate' AND substr(measured_at,1,10) >= ? AND substr(measured_at,1,10) < ?" },
+  { metric: 'Waist', unit: 'cm', dp: 1, upGood: false, sql: "SELECT AVG(waist_cm) AS v FROM body_metrics WHERE measured_on >= ? AND measured_on < ?" },
 ];
 
 const dayStr = (ms: number) => new Date(ms).toISOString().slice(0, 10);

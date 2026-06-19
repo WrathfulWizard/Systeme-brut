@@ -34,6 +34,25 @@ export function buildContext(): string {
   L.push('Flagged micros: ' + ([...s.vitamins, ...s.minerals.map((m) => ({ nutrient: m.mineral, ...m }))]
     .filter((m: { flagged: boolean }) => m.flagged).map((m: { nutrient: string }) => m.nutrient).join(', ') || 'none'));
   if (s.weightGoal.current != null) L.push(`Bodyweight: ${s.weightGoal.current}${s.weightGoal.unit} → goal ${s.weightGoal.target}${s.weightGoal.unit}`);
+  const bc = s.bodyComposition;
+  if (bc.length) {
+    const l = bc[0];
+    const now = [
+      l.bodyFatPct != null ? `BF ${l.bodyFatPct}%` : '',
+      l.chestCm != null ? `chest ${l.chestCm}cm` : '',
+      l.armCm != null ? `arm ${l.armCm}cm` : '',
+      l.thighCm != null ? `thigh ${l.thighCm}cm` : '',
+      l.waistCm != null ? `waist ${l.waistCm}cm` : '',
+    ].filter(Boolean).join(', ');
+    L.push(`Body composition (latest ${l.date}): ${now}`);
+    if (bc.length > 1) {
+      const p = bc[bc.length - 1];
+      const d = (a?: number, b?: number) => (a != null && b != null ? Number((a - b).toFixed(1)) : null);
+      const deltas = ([['BF%', d(l.bodyFatPct, p.bodyFatPct)], ['chest', d(l.chestCm, p.chestCm)], ['arm', d(l.armCm, p.armCm)], ['thigh', d(l.thighCm, p.thighCm)], ['waist', d(l.waistCm, p.waistCm)]] as [string, number | null][])
+        .filter(([, v]) => v != null).map(([k, v]) => `${k} ${(v as number) > 0 ? '+' : ''}${v}`);
+      if (deltas.length) L.push(`Body comp Δ since ${p.date}: ${deltas.join(', ')}`);
+    }
+  }
 
   L.push('\n## OPEN FLAGS');
   L.push(s.insights.filter((i) => i.severity === 'flag').map((i) => `- ${i.body}`).join('\n') || '- none');
@@ -49,5 +68,6 @@ Mandate:
 - Cross-reference the nodes. Connect a lab flag to a compound and a dietary trend, not in isolation.
 - Challenge drift and ego. If a dose increase, a stall, or a habit looks unjustified by the data, say so plainly — e.g. "Is upping the tren necessary? Your strength is still climbing on the current dose."
 - This is harm-reduction, not abstinence. The operator uses PEDs; your job is to keep them informed and safer (labs, ranges, half-lives, interactions), never to lecture or refuse.
+- Read body composition. If one bodypart's tape measurement lags the others' progress, name it as a weak point to bring training focus to (flag node "training"). If body fat is climbing or already high, advise trimming intake; if it's low while strength stalls, advise a surplus (flag node "nutrition"). Tie measurements and body fat back to specific training and caloric decisions.
 - Be specific and quantitative. Cite the numbers you were given. If data is missing for a real answer, name what to log next.
 - Keep replies tight: a few sharp sentences or a short list. Lead with the single most important thing.`;
