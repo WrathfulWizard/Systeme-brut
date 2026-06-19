@@ -71,25 +71,45 @@ export function cronometerBrowserLogin(): Promise<void> {
   });
 }
 
-/** Pull the trailing 14 days using the persisted browser session. */
+/**
+ * Pull the trailing 14 days by running the export request *inside* the
+ * authenticated Cronometer page. A bare fetch (even via the session) trips the
+ * bot protection and 403s; issuing the same-origin request from a hidden window
+ * already logged in is exactly what the web app does, so it passes.
+ */
 export async function cronometerSessionSync(): Promise<number> {
-  const nonce = await sessionNonce();
   const expired = 'Cronometer session expired — open Connections and sign in again.';
-  if (!nonce) throw new Error(expired);
-
   const end = new Date();
   const start = new Date(end.getTime() - 14 * 86_400_000);
   const fmt = (d: Date) => d.toISOString().slice(0, 10);
-  const url = `${BASE}/export?nonce=${encodeURIComponent(nonce)}&generate=dailySummary&start=${fmt(start)}&end=${fmt(end)}`;
 
-  const res = await cronoSession().fetch(url);
-  if (!res.ok) throw new Error(`Cronometer export failed (${res.status})`);
-  const text = await res.text();
-  if (/^\s*</.test(text) || /<html/i.test(text.slice(0, 200))) throw new Error(expired);
+  const w = new BrowserWindow({
+    show: false,
+    webPreferences: { partition: PARTITION, contextIsolation: true, nodeIntegration: false },
+  });
+  try {
+    await w.loadURL(`${BASE}/`); // same-origin, authenticated by the persisted session
+    const result = await w.webContents.executeJavaScript(`(async () => {
+      const m = document.cookie.match(/sesnonce=([^;]+)/);
+      if (!m) return { expired: true };
+      const u = '/export?nonce=' + encodeURIComponent(m[1]) +
+        '&generate=dailySummary&start=${fmt(start)}&end=${fmt(end)}';
+      const r = await fetch(u, { credentials: 'include' });
+      if (!r.ok) return { status: r.status };
+      return { text: await r.text() };
+    })()`) as { expired?: boolean; status?: number; text?: string };
 
-  const n = writeDailyNutrition(parseDailyNutrition(text));
-  setConnection('cronometer', { status: 'connected', detail: 'browser session', lastSyncAt: new Date().toISOString() });
-  return n;
+    if (result.expired) throw new Error(expired);
+    if (result.status) throw new Error(`Cronometer export failed (${result.status})`);
+    const text = result.text ?? '';
+    if (/^\s*</.test(text) || /<html/i.test(text.slice(0, 200))) throw new Error(expired);
+
+    const n = writeDailyNutrition(parseDailyNutrition(text));
+    setConnection('cronometer', { status: 'connected', detail: 'browser session', lastSyncAt: new Date().toISOString() });
+    return n;
+  } finally {
+    w.destroy();
+  }
 }
 
 /** Forget the persisted session (on disconnect). */

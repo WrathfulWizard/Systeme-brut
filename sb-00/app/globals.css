@@ -80,12 +80,21 @@ button { font-family: inherit; }
 
 /* ---- nav ----------------------------------------------------------------- */
 .nav a {
-  display: block; width: 100%; text-align: left; background: none; border: none;
+  position: relative; display: block; width: 100%; text-align: left; background: none; border: none;
   color: var(--dim); font-family: var(--font-cap); font-weight: 600; font-size: 11px;
-  letter-spacing: 0.07em; text-transform: uppercase; padding: 7px 0; cursor: pointer;
+  letter-spacing: 0.07em; text-transform: uppercase; padding: 7px 0 7px 12px; cursor: pointer;
+  transition: color 0.18s ease, padding-left 0.18s ease, letter-spacing 0.18s ease;
+}
+/* animated left tick that grows as the node becomes active / hovered */
+.nav a::before {
+  content: ''; position: absolute; left: 0; top: 50%; transform: translateY(-50%);
+  width: 0; height: 1px; background: var(--text); transition: width 0.22s ease;
 }
 .nav a.on { color: var(--text); }
-.nav a:hover { color: var(--text); }
+.nav a.on::before { width: 7px; }
+.nav a:hover { color: var(--text); padding-left: 15px; }
+.nav a:hover::before { width: 4px; }
+.nav a:active { letter-spacing: 0.1em; }
 .nav .grouplbl {
   font-family: var(--font-cap); font-weight: 600; font-size: 11px; letter-spacing: 0.07em;
   text-transform: uppercase; color: var(--dim); padding: 7px 0 2px;
@@ -169,6 +178,7 @@ tr.prrow td:last-child { font-weight: 700; color: var(--text); }
 .srow-body { padding: 6px 2px 14px; }
 .win-toggle { display: flex; gap: 6px; margin-bottom: 8px; }
 .wbtn { background: transparent; border: 1px solid var(--line); color: var(--dim); padding: 3px 9px;
+  transition: color 0.16s ease, border-color 0.16s ease, background 0.16s ease;
   font-family: var(--font-cap); font-size: 10px; letter-spacing: 0.07em; cursor: pointer; }
 .wbtn.on { color: var(--text); border-color: var(--text); }
 .steady-banner { margin-top: 8px; font-family: var(--font-mono); font-size: 10.5px; letter-spacing: 0.03em;
@@ -267,10 +277,13 @@ tr.prrow td:last-child { font-weight: 700; color: var(--text); }
   letter-spacing: 0.07em;
   text-transform: uppercase;
   cursor: pointer;
+  transition: background 0.16s ease, border-color 0.16s ease, color 0.16s ease, transform 0.08s ease, box-shadow 0.16s ease;
 }
-.btn:hover:not(:disabled) { background: var(--line-soft); }
+.btn:hover:not(:disabled) { background: var(--line-soft); border-color: var(--text); }
+.btn:active:not(:disabled) { transform: translateY(1px) scale(0.985); background: rgba(235,235,240,0.06); }
 .btn:disabled { opacity: 0.45; cursor: default; }
 .btn.primary { border-color: var(--text); }
+.btn.primary:hover:not(:disabled) { box-shadow: 0 0 0 1px var(--text) inset; }
 
 .btnrow-inline { display: flex; gap: 8px; flex-wrap: wrap; }
 .synced-note {
@@ -399,3 +412,33 @@ tr.prrow td:last-child { font-weight: 700; color: var(--text); }
 /* clear button sits at the right edge of a feed row */
 .feed .row { align-items: center; }
 .feed .row > .rowbtn { margin-left: auto; flex: none; }
+
+/* ============================================================================
+   Reactive / tactile layer — systeme brut × ghost in the shell. Quiet motion,
+   physical press feedback, smooth node-to-node transitions. No new colour:
+   magenta stays flag-only.
+   ============================================================================ */
+.rowbtn { transition: color 0.14s ease, border-color 0.14s ease, transform 0.08s ease; }
+.rowbtn:active { transform: scale(0.94); }
+.wbtn:active { transform: scale(0.94); }
+.flagchip, .cnr a, .feed .row { transition: color 0.16s ease, background 0.16s ease, opacity 0.16s ease; }
+
+/* table rows breathe slightly on hover — readout feels alive, not static */
+table tbody tr { transition: background 0.14s ease; }
+table tbody tr:hover td { background: rgba(235, 235, 240, 0.025); }
+
+/* node-to-node route transition: each navigation re-keys this wrapper, so the
+   incoming node fades + lifts into place like a HUD panel mounting */
+.route-fade { animation: nodeIn 0.34s cubic-bezier(0.22, 0.61, 0.36, 1) both; }
+@keyframes nodeIn {
+  from { opacity: 0; transform: translateY(7px); filter: blur(1.5px); }
+  to   { opacity: 1; transform: none; filter: none; }
+}
+
+/* blocks stagger in faintly under the page for a "system mounting" feel */
+.block { animation: blockIn 0.4s ease both; }
+@keyframes blockIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; }
+}

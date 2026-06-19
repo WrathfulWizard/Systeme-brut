@@ -3,6 +3,7 @@ import { getCatalog } from './mutations';
 import { computeTrainingStatus } from './training';
 import { computeProgress } from './analytics';
 import { getStravaApp } from '../ingest/secrets';
+import { healthEndpoint, healthEndpoints } from '../ingest/lan';
 import { lookup } from '../pharma/compounds';
 import { protocolSerum, discreteSerum } from '../pharma/serum';
 import type {
@@ -25,6 +26,12 @@ const md = (iso: string) => {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
   return `${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')}`;
+};
+// Year-aware (YY.MM.DD) — for logs where an old entry must not read as recent.
+const mdy = (iso: string) => {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return `${String(d.getFullYear() % 100).padStart(2, '0')}.${md(iso)}`;
 };
 const weekday = (iso: string) =>
   ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'][new Date(iso).getDay()];
@@ -129,7 +136,7 @@ export function getSnapshot(): Snapshot {
   const cardioGoal = { metric: 'distance_km', target: goalRow?.target ?? 10, longest, unit: goalRow?.unit ?? 'km' };
   const cardioProgression = [...cardio].reverse().map((r) => ({ date: md(r.at), distance: r.km }));
   const recentRuns = cardio.map((r) => ({
-    date: md(r.at), distance: `${r.km.toFixed(1)}km`, pace: paceStr(r.pace, r.sport),
+    date: mdy(r.at), distance: `${r.km.toFixed(1)}km`, pace: paceStr(r.pace, r.sport),
     source: r.source === 'strava' ? 'Strava' : r.source, sport: (r.sport ?? 'run') as 'run' | 'ride' | 'swim',
     duration: r.dur ? hms(r.dur) : undefined,
   }));
@@ -418,7 +425,10 @@ export function getSyncMeta(): SyncMeta {
     detail: r.detail ?? undefined, lastSyncAt: r.last_sync_at ?? undefined,
     configured: r.source === 'strava' ? stravaConfigured() : undefined,
   }));
-  return { connections };
+  // Resolve the Apple Health endpoint here so the very first snapshot carries it
+  // (otherwise the UI shows the <this-machine> placeholder until a sync fires —
+  // pasting that into the phone gives a DNS "host not found" error).
+  return { connections, healthEndpoint: healthEndpoint(), healthCandidates: healthEndpoints() };
 }
 
 export function setConnection(source: SourceId, patch: Partial<Omit<ConnectionState, 'source'>> & { cursor?: string }) {
