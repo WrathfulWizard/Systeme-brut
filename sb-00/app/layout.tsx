@@ -3,6 +3,7 @@ import { Inter, Archivo_Narrow, Roboto_Mono } from 'next/font/google';
 import './globals.css';
 import { Providers } from './providers';
 import BootSplash from '@/components/BootSplash';
+import RouteTransition from '@/components/RouteTransition';
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter' });
 const archivo = Archivo_Narrow({ subsets: ['latin'], weight: ['500', '600', '700'], variable: '--font-archivo' });
@@ -16,7 +17,7 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en" className={`${inter.variable} ${archivo.variable} ${robotoMono.variable}`}>
-      <body><Providers><BootSplash />{children}</Providers></body>
+      <body><Providers><BootSplash /><RouteTransition>{children}</RouteTransition></Providers></body>
     </html>
   );
 }

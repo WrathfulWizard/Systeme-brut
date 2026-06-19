@@ -1,6 +1,8 @@
 import { createServer, type Server } from 'node:http';
-import { networkInterfaces } from 'node:os';
 import { applyHealthExport } from './appleHealth';
+import { RECEIVER_PORT, lanAddress, healthEndpoint } from './lan';
+
+export { RECEIVER_PORT, lanAddress, healthEndpoint };
 
 /**
  * Local ingestion receiver — the endpoint the phone-side Apple Health bridge
@@ -16,33 +18,6 @@ import { applyHealthExport } from './appleHealth';
  */
 
 const BIND = '0.0.0.0';
-export const RECEIVER_PORT = Number(process.env.HEALTH_INGEST_PORT ?? 8787);
-
-/** Best-guess LAN IPv4 for this machine, so the phone has a reachable address. */
-export function lanAddress(): string {
-  const ifaces = networkInterfaces();
-  const candidates: string[] = [];
-  for (const list of Object.values(ifaces)) {
-    for (const ni of list ?? []) {
-      // Skip loopback and 169.254.x APIPA (a self-assigned address looks valid
-      // but the phone can never reach it — a common "invalid/unreachable" cause).
-      if (ni.family === 'IPv4' && !ni.internal && !ni.address.startsWith('169.254.')) candidates.push(ni.address);
-    }
-  }
-  // Prefer common private ranges (home/office LAN) over anything exotic.
-  const preferred = candidates.find((a) => /^192\.168\./.test(a))
-    ?? candidates.find((a) => /^10\./.test(a))
-    ?? candidates.find((a) => /^172\.(1[6-9]|2\d|3[01])\./.test(a))
-    ?? candidates[0];
-  return preferred ?? '127.0.0.1';
-}
-
-export function healthEndpoint(): string {
-  return `http://${lanAddress()}:${RECEIVER_PORT}/ingest/health`;
-}
-
-// Back-compat constant (loopback form) — prefer healthEndpoint() for display.
-export const HEALTH_ENDPOINT = `http://127.0.0.1:${RECEIVER_PORT}/ingest/health`;
 
 let server: Server | null = null;
 

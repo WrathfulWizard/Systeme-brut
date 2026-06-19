@@ -149,14 +149,27 @@ export default function Connections() {
 
               {s === 'apple_health' && (
                 <div className="mono" style={{ fontSize: 11.5, lineHeight: 1.7 }}>
-                  <div>
-                    <span style={{ color: 'var(--dim)' }}>POST endpoint:&nbsp;</span>
-                    <span style={{ color: 'var(--text)' }}>{sync.healthEndpoint ?? 'http://<this-machine>:8787/ingest/health'}</span>
-                  </div>
-                  <div style={{ color: 'var(--dim)', marginTop: 4 }}>
-                    This is your PC&apos;s LAN address — paste it into Health Auto Export&apos;s REST API URL. If it shows
-                    127.0.0.1 the PC has no Wi-Fi/LAN IP; connect to a network and re-open this screen.
-                  </div>
+                  {(sync.healthCandidates?.length ? sync.healthCandidates : sync.healthEndpoint ? [sync.healthEndpoint] : []).length ? (
+                    <>
+                      <div style={{ color: 'var(--dim)', marginBottom: 4 }}>POST endpoint — paste into Health Auto Export&apos;s REST API URL:</div>
+                      {(sync.healthCandidates?.length ? sync.healthCandidates : [sync.healthEndpoint!]).map((url) => (
+                        <div key={url} style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 3 }}>
+                          <span style={{ color: 'var(--text)' }}>{url}</span>
+                          <button className="btn" style={{ padding: '3px 8px', fontSize: 9 }}
+                            onClick={() => navigator.clipboard?.writeText(url)}>copy</button>
+                        </div>
+                      ))}
+                      <div style={{ color: 'var(--dim)', marginTop: 6 }}>
+                        If several are listed, use the one on the same Wi-Fi subnet as your phone (usually 192.168.x).
+                        Phone and PC must share the network. A &quot;host not found&quot; error means you pasted a
+                        placeholder — copy an address above instead.
+                      </div>
+                    </>
+                  ) : (
+                    <div style={{ color: 'var(--mag)' }}>
+                      No LAN address found — this PC isn&apos;t on Wi-Fi/Ethernet. Connect to your network and re-open this screen.
+                    </div>
+                  )}
                 </div>
               )}
             </div>

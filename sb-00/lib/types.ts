@@ -191,8 +191,10 @@ export interface ConnectionState {
 }
 
 export interface SyncMeta {
-  /** receiver endpoint the Apple Health bridge posts to, e.g. http://localhost:8787/ingest/health */
+  /** receiver endpoint the Apple Health bridge posts to, e.g. http://192.168.1.x:8787/ingest/health */
   healthEndpoint?: string;
+  /** every routable LAN endpoint, so the operator can pick the phone's subnet */
+  healthCandidates?: string[];
   connections: ConnectionState[];
   agent?: AgentStatus;
 }
