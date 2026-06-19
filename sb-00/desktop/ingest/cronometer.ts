@@ -40,31 +40,58 @@ class Jar {
   get(name: string) { return this.jar.get(name); }
 }
 
+// A full, current desktop-Chrome fingerprint. Cronometer fronts the site with
+// bot protection that 403s requests missing browser-shaped headers, so every
+// request below carries this set — the most common cause of the export 403.
+const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
+function browserHeaders(extra: Record<string, string> = {}): Record<string, string> {
+  return {
+    'user-agent': UA,
+    'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+    'accept-language': 'en-US,en;q=0.9',
+    'sec-ch-ua': '"Chromium";v="124", "Google Chrome";v="124", "Not-A.Brand";v="99"',
+    'sec-ch-ua-mobile': '?0',
+    'sec-ch-ua-platform': '"Windows"',
+    'sec-fetch-dest': 'document',
+    'sec-fetch-mode': 'navigate',
+    'sec-fetch-site': 'same-origin',
+    'upgrade-insecure-requests': '1',
+    ...extra,
+  };
+}
+
 export class CronometerClient {
   private jar = new Jar();
 
   async login(username: string, password: string): Promise<void> {
-    // 1. prime cookies + anti-CSRF token
-    const page = await fetch(`${BASE}/login/`, { headers: { 'user-agent': UA } });
+    // 1. prime cookies + anti-CSRF token from the login page
+    const page = await fetch(`${BASE}/login/`, { headers: browserHeaders() });
     this.jar.capture(page);
     const html = await page.text();
     const anticsrf = /name="anticsrf"\s+value="([^"]+)"/.exec(html)?.[1]
+      ?? /["']anticsrf["']\s*[:=]\s*["']([^"']+)["']/.exec(html)?.[1]
       ?? this.jar.get('sesnonce') ?? '';
 
-    // 2. submit the login form
+    // 2. submit the login form (form-encoded, with a browser-shaped header set)
     const body = new URLSearchParams({ anticsrf, username, password });
     const res = await fetch(`${BASE}/login`, {
       method: 'POST',
       redirect: 'manual',
-      headers: {
+      headers: browserHeaders({
         'content-type': 'application/x-www-form-urlencoded',
-        cookie: this.jar.header(), 'user-agent': UA, referer: `${BASE}/login/`,
-      },
+        cookie: this.jar.header(),
+        referer: `${BASE}/login/`,
+        origin: BASE,
+        'sec-fetch-mode': 'cors',
+        'sec-fetch-dest': 'empty',
+      }),
       body,
     });
     this.jar.capture(res);
     if (!this.jar.get('sesnonce') && !this.jar.get('JSESSIONID')) {
-      throw new Error('Cronometer login rejected — check credentials');
+      const txt = await res.text().catch(() => '');
+      const hint = res.status === 403 ? ' (blocked — bot protection)' : '';
+      throw new Error(`Cronometer login rejected (${res.status})${hint} — check email/password${txt && /captcha|recaptcha|turnstile/i.test(txt) ? '; a CAPTCHA was required' : ''}`);
     }
   }
 
@@ -72,13 +99,27 @@ export class CronometerClient {
   async fetchDailyNutritionCsv(start: string, end: string): Promise<string> {
     const nonce = this.jar.get('sesnonce') ?? '';
     const url = `${BASE}/export?nonce=${encodeURIComponent(nonce)}&generate=dailySummary&start=${start}&end=${end}`;
-    const res = await fetch(url, { headers: { cookie: this.jar.header(), 'user-agent': UA } });
-    if (!res.ok) throw new Error(`Cronometer export failed (${res.status})`);
-    return res.text();
+    const res = await fetch(url, {
+      headers: browserHeaders({
+        cookie: this.jar.header(),
+        referer: `${BASE}/`,
+        accept: 'text/csv,application/csv,*/*;q=0.8',
+        'sec-fetch-mode': 'cors',
+        'sec-fetch-dest': 'empty',
+      }),
+    });
+    if (!res.ok) {
+      const txt = await res.text().catch(() => '');
+      throw new Error(`Cronometer export failed (${res.status})${txt ? ` — ${txt.slice(0, 160)}` : ''}`);
+    }
+    const text = await res.text();
+    // A bounced/expired session returns HTML (a login page), not CSV.
+    if (/^\s*</.test(text) || /<html/i.test(text.slice(0, 200))) {
+      throw new Error('Cronometer export returned a login page — session not authenticated. Re-link credentials.');
+    }
+    return text;
   }
 }
-
-const UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36';
 
 /* ---- CSV parsing (pure, testable) --------------------------------------- */
 

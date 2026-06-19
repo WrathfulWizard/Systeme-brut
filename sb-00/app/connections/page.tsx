@@ -108,35 +108,36 @@ export default function Connections() {
 
               {s === 'cronometer' && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  {/* Primary: import a CSV the user exported themselves (reliable). */}
+                  {/* Primary: credential auto-sync (enter once → pulls hourly). */}
+                  {c.status === 'connected'
+                    ? <div className="btnrow-inline">
+                        <span className="mono" style={{ fontSize: 11, color: 'var(--dim)', alignSelf: 'center' }}>Auto-syncs hourly.</span>
+                        <button className="btn" disabled={busy === s} onClick={wrap(s, () => syncNow('cronometer'))}>Sync now</button>
+                        <button className="btn" disabled={busy === s} onClick={wrap(s, () => disconnect('cronometer'))}>Disconnect</button>
+                      </div>
+                    : <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+                        <input className="fld" placeholder="email" value={cronUser} onChange={(e) => setCronUser(e.target.value)} />
+                        <input className="fld" placeholder="password" type="password" value={cronPass} onChange={(e) => setCronPass(e.target.value)} />
+                        <button className="btn" disabled={!isDesktop || busy === s || !cronUser || !cronPass}
+                          onClick={wrap(s, async () => { await connectCronometer(cronUser, cronPass); setCronPass(''); })}>
+                          {busy === s ? 'Linking…' : 'Link & auto-sync'}
+                        </button>
+                      </div>}
+                  {c.status === 'error' && c.detail && (
+                    <p className="mono" style={{ fontSize: 11, color: 'var(--mag)', margin: 0 }}>{c.detail}</p>
+                  )}
+                  {/* Fallback: import a CSV you exported yourself (always works). */}
                   <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
                     <label className="btn" style={{ cursor: isDesktop ? 'pointer' : 'default' }}>
-                      {busy === s ? 'Importing…' : 'Import CSV'}
+                      {busy === s ? 'Importing…' : 'Import CSV instead'}
                       <input type="file" accept=".csv,text/csv" disabled={!isDesktop || busy === s} style={{ display: 'none' }}
                         onChange={(e) => onCronCsv(e.target.files?.[0])} />
                     </label>
                     <span className="mono" style={{ fontSize: 11, color: 'var(--dim)' }}>
-                      Cronometer → Account → Export Data → “Daily Nutrition”.
+                      Fallback if auto-sync is blocked: Account → Export Data → “Daily Nutrition”.
                     </span>
                   </div>
                   {cronNote && <p className="mono" style={{ fontSize: 11, color: 'var(--text)', margin: 0 }}>{cronNote}</p>}
-                  {/* Secondary: credential auto-pull (unofficial, may break). */}
-                  {c.status === 'connected'
-                    ? <div className="btnrow-inline">
-                        <button className="btn" disabled={busy === s} onClick={wrap(s, () => syncNow('cronometer'))}>Sync now</button>
-                        <button className="btn" disabled={busy === s} onClick={wrap(s, () => disconnect('cronometer'))}>Disconnect</button>
-                      </div>
-                    : <details>
-                        <summary className="mono" style={{ fontSize: 11, color: 'var(--dim)', cursor: 'pointer' }}>Auto-pull with login (unofficial)</summary>
-                        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginTop: 8 }}>
-                          <input className="fld" placeholder="email" value={cronUser} onChange={(e) => setCronUser(e.target.value)} />
-                          <input className="fld" placeholder="password" type="password" value={cronPass} onChange={(e) => setCronPass(e.target.value)} />
-                          <button className="btn" disabled={!isDesktop || busy === s || !cronUser || !cronPass}
-                            onClick={wrap(s, async () => { await connectCronometer(cronUser, cronPass); setCronPass(''); })}>
-                            {busy === s ? 'Linking…' : 'Link account'}
-                          </button>
-                        </div>
-                      </details>}
                 </div>
               )}
 
