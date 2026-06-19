@@ -20,7 +20,7 @@ function dot(status: ConnectionState['status']) {
 }
 
 export default function Connections() {
-  const { sync, isDesktop, connectStrava, connectCronometerBrowser, importCronometerCsv, disconnect, syncNow, saveStravaApp, agent, refreshAgent, setAgentModel } = useSb();
+  const { sync, isDesktop, connectStrava, connectCronometerBrowser, importCronometerCsv, disconnect, syncNow, startHealthTunnel, stopHealthTunnel, saveStravaApp, agent, refreshAgent, setAgentModel } = useSb();
   const [cronUser, setCronUser] = useState('');
   const [cronPass, setCronPass] = useState('');
   const [cronNote, setCronNote] = useState('');
@@ -160,16 +160,64 @@ export default function Connections() {
                         </div>
                       ))}
                       <div style={{ color: 'var(--dim)', marginTop: 6 }}>
-                        If several are listed, use the one on the same Wi-Fi subnet as your phone (usually 192.168.x).
-                        Phone and PC must share the network. A &quot;host not found&quot; error means you pasted a
-                        placeholder — copy an address above instead.
+                        At home: use a LAN address above (phone + PC on the same network, usually 192.168.x).
                       </div>
                     </>
                   ) : (
-                    <div style={{ color: 'var(--mag)' }}>
-                      No LAN address found — this PC isn&apos;t on Wi-Fi/Ethernet. Connect to your network and re-open this screen.
+                    <div style={{ color: 'var(--dim)' }}>
+                      No LAN address — at home, connect this PC to Wi-Fi/Ethernet. Or use the internet tunnel below.
                     </div>
                   )}
+
+                  {/* Required auth header — the endpoint is always token-gated. */}
+                  {sync.healthToken && (
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 10 }}>
+                      <span style={{ color: 'var(--dim)' }}>Auth header:</span>
+                      <span style={{ color: 'var(--text)' }}>Authorization: Bearer {sync.healthToken}</span>
+                      <button className="btn" style={{ padding: '3px 8px', fontSize: 9 }}
+                        onClick={() => navigator.clipboard?.writeText(`Bearer ${sync.healthToken}`)}>copy</button>
+                    </div>
+                  )}
+                  <div style={{ color: 'var(--dim)', marginTop: 2 }}>
+                    In Health Auto Export add this as a request header — the endpoint rejects writes without it.
+                  </div>
+
+                  {/* Internet tunnel — sync over cellular when away from home. */}
+                  <div style={{ marginTop: 12, borderTop: '1px solid var(--line-soft)', paddingTop: 10 }}>
+                    <div style={{ color: 'var(--text)', marginBottom: 6 }}>Internet sync (away from home)</div>
+                    {sync.healthTunnel?.running && sync.healthTunnel.url ? (
+                      <>
+                        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                          <span style={{ color: 'var(--text)' }}>{sync.healthTunnel.url}/ingest/health</span>
+                          <button className="btn" style={{ padding: '3px 8px', fontSize: 9 }}
+                            onClick={() => navigator.clipboard?.writeText(`${sync.healthTunnel!.url}/ingest/health`)}>copy</button>
+                        </div>
+                        <div style={{ color: 'var(--dim)', marginTop: 4 }}>
+                          Use this URL on the phone to sync over cellular. It changes if the app restarts — re-copy then.
+                        </div>
+                        <button className="btn" style={{ marginTop: 8 }} disabled={!isDesktop} onClick={() => stopHealthTunnel()}>Disable internet sync</button>
+                      </>
+                    ) : sync.healthTunnel?.running ? (
+                      <div style={{ color: 'var(--dim)' }}>Starting tunnel…</div>
+                    ) : (
+                      <>
+                        <button className="btn" disabled={!isDesktop} onClick={() => startHealthTunnel()}>Enable internet sync</button>
+                        {sync.healthTunnel?.installed === false ? (
+                          <div style={{ color: 'var(--mag)', marginTop: 6 }}>
+                            Needs the free <span style={{ color: 'var(--text)' }}>cloudflared</span> tool. Install it once
+                            (<span style={{ color: 'var(--text)' }}>winget install Cloudflare.cloudflared</span>), then enable again.
+                          </div>
+                        ) : sync.healthTunnel?.error ? (
+                          <div style={{ color: 'var(--mag)', marginTop: 6 }}>{sync.healthTunnel.error}</div>
+                        ) : (
+                          <div style={{ color: 'var(--dim)', marginTop: 6 }}>
+                            Opens a secure Cloudflare tunnel to this PC (no router setup). Requires the free cloudflared tool
+                            and the PC left on while away.
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
                 </div>
               )}
             </div>

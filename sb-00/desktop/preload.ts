@@ -18,6 +18,8 @@ const bridge: SbBridge = {
   importCronometerCsv: (csv: string) => ipcRenderer.invoke('sb:importCronometerCsv', csv),
   disconnect: (source: SourceId) => ipcRenderer.invoke('sb:disconnect', source),
   syncNow: (source?: SourceId) => ipcRenderer.invoke('sb:syncNow', source),
+  startHealthTunnel: () => ipcRenderer.invoke('sb:startHealthTunnel'),
+  stopHealthTunnel: () => ipcRenderer.invoke('sb:stopHealthTunnel'),
   onSyncUpdate: (cb: (m: SyncMeta) => void) => {
     const listener = (_e: unknown, m: SyncMeta) => cb(m);
     ipcRenderer.on('sb:syncUpdate', listener);

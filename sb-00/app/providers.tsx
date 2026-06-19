@@ -23,6 +23,8 @@ interface Ctx {
   importCronometerCsv: (csv: string) => Promise<{ ok: boolean; days: number; error?: string }>;
   disconnect: (s: SourceId) => Promise<void>;
   syncNow: (s?: SourceId) => Promise<void>;
+  startHealthTunnel: () => Promise<void>;
+  stopHealthTunnel: () => Promise<void>;
   addSet: (input: LiftInput) => Promise<void>;
   updateSet: (id: number, input: LiftInput) => Promise<void>;
   deleteSet: (id: number) => Promise<void>;
@@ -106,6 +108,8 @@ export function Providers({ children }: { children: React.ReactNode }) {
     },
     disconnect: async (s) => { if (window.sb) setSync(await window.sb.disconnect(s)); await refresh(); },
     syncNow: async (s) => { if (window.sb) setSync(await window.sb.syncNow(s)); await refresh(); },
+    startHealthTunnel: async () => { if (window.sb) setSync(await window.sb.startHealthTunnel()); },
+    stopHealthTunnel: async () => { if (window.sb) setSync(await window.sb.stopHealthTunnel()); },
     addSet: async (input) => { if (window.sb) { const s = await window.sb.addSet(input); setSnapshot(s); setSync(s.syncMeta); } },
     updateSet: async (id, input) => { if (window.sb) { const s = await window.sb.updateSet(id, input); setSnapshot(s); setSync(s.syncMeta); } },
     deleteSet: async (id) => { if (window.sb) { const s = await window.sb.deleteSet(id); setSnapshot(s); setSync(s.syncMeta); } },

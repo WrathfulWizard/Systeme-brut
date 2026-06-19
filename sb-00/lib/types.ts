@@ -195,6 +195,10 @@ export interface SyncMeta {
   healthEndpoint?: string;
   /** every routable LAN endpoint, so the operator can pick the phone's subnet */
   healthCandidates?: string[];
+  /** bearer token the receiver requires (LAN + tunnel) */
+  healthToken?: string;
+  /** Cloudflare quick-tunnel state for syncing Apple Health when away from home */
+  healthTunnel?: { running: boolean; url?: string; installed: boolean; error?: string };
   connections: ConnectionState[];
   agent?: AgentStatus;
 }
@@ -212,6 +216,9 @@ export interface SbBridge {
   importCronometerCsv(csv: string): Promise<{ ok: boolean; days: number; error?: string }>;
   disconnect(source: SourceId): Promise<SyncMeta>;
   syncNow(source?: SourceId): Promise<SyncMeta>;
+  /** Apple Health internet tunnel (Cloudflare quick tunnel) — start/stop. */
+  startHealthTunnel(): Promise<SyncMeta>;
+  stopHealthTunnel(): Promise<SyncMeta>;
   onSyncUpdate(cb: (meta: SyncMeta) => void): () => void;
   /* manual logging — each returns a fresh snapshot so the UI updates live */
   addSet(input: LiftInput): Promise<Snapshot>;

@@ -2,8 +2,9 @@ import { getDb } from './index';
 import { getCatalog } from './mutations';
 import { computeTrainingStatus } from './training';
 import { computeProgress } from './analytics';
-import { getStravaApp } from '../ingest/secrets';
+import { getStravaApp, getHealthToken } from '../ingest/secrets';
 import { healthEndpoint, healthEndpoints } from '../ingest/lan';
+import { tunnelState } from '../ingest/tunnel';
 import { lookup } from '../pharma/compounds';
 import { protocolSerum, discreteSerum } from '../pharma/serum';
 import type {
@@ -428,7 +429,10 @@ export function getSyncMeta(): SyncMeta {
   // Resolve the Apple Health endpoint here so the very first snapshot carries it
   // (otherwise the UI shows the <this-machine> placeholder until a sync fires —
   // pasting that into the phone gives a DNS "host not found" error).
-  return { connections, healthEndpoint: healthEndpoint(), healthCandidates: healthEndpoints() };
+  return {
+    connections, healthEndpoint: healthEndpoint(), healthCandidates: healthEndpoints(),
+    healthToken: getHealthToken(), healthTunnel: tunnelState(),
+  };
 }
 
 export function setConnection(source: SourceId, patch: Partial<Omit<ConnectionState, 'source'>> & { cursor?: string }) {

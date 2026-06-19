@@ -1,5 +1,6 @@
 import { app, BrowserWindow, ipcMain, shell, Menu } from 'electron';
 import { join } from 'node:path';
+import { randomBytes } from 'node:crypto';
 import { createServer, type Server } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { createReadStream, existsSync } from 'node:fs';
@@ -16,8 +17,10 @@ import {
 import { agentStatus, setAgentModel, agentChat, agentReview, agentSweep, type StreamHandlers } from './agent/ollama';
 import { ensureOllamaRunning, pullDefaultIfEmpty } from './agent/launch';
 import type { LiftInput, AdminInput, TitrationInput, LabPanelInput, ProtocolInput, ChatMessage, BodyMetricInput } from '../lib/types';
-import { initSecrets, setCronometer, setCronometerSession, setStravaApp } from './ingest/secrets';
+import { initSecrets, setCronometer, setCronometerSession, setStravaApp, ensureHealthToken } from './ingest/secrets';
 import { startIngestion, stopIngestion, syncNow, disconnect, meta } from './ingest/index';
+import { startTunnel, stopTunnel } from './ingest/tunnel';
+import { RECEIVER_PORT } from './ingest/lan';
 import { buildAuthUrl, exchangeCode, syncStrava, STRAVA_REDIRECT_PORT } from './ingest/strava';
 import { syncCronometerAny, importCronometerCsv, registerCronometerSessionSync } from './ingest/cronometer';
 import { cronometerBrowserLogin, cronometerSessionSync, clearCronometerSession } from './ingest/cronometer-browser';
@@ -108,6 +111,13 @@ function registerIpc() {
     if (source === 'cronometer') { setCronometerSession(undefined); await clearCronometerSession(); }
     return disconnect(source);
   });
+  // Apple Health internet tunnel — the quick-tunnel URL arrives async, so start
+  // returns immediately and the live URL is pushed via a sync update.
+  ipcMain.handle('sb:startHealthTunnel', () => {
+    startTunnel(RECEIVER_PORT, () => win?.webContents.send('sb:syncUpdate', meta()));
+    return meta();
+  });
+  ipcMain.handle('sb:stopHealthTunnel', () => { stopTunnel(); return meta(); });
   ipcMain.handle('sb:syncNow', (_e, source?: SourceId) => syncNow(source));
 
   ipcMain.handle('sb:addSet', (_e, input: LiftInput) => { addSet(input); return getSnapshot(); });
@@ -171,6 +181,7 @@ async function createWindow() {
 app.whenReady().then(() => {
   openDb(join(app.getPath('userData'), 'systeme-brut.db'));
   initSecrets(join(app.getPath('userData'), 'secrets.bin'));
+  ensureHealthToken(() => randomBytes(24).toString('hex')); // gate the receiver
   registerCronometerSessionSync(cronometerSessionSync);
   registerIpc();
   startIngestion((m) => win?.webContents.send('sb:syncUpdate', m));
@@ -190,4 +201,4 @@ app.whenReady().then(() => {
 });
 
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
-app.on('quit', () => { stopIngestion(); staticServer?.close(); });
+app.on('quit', () => { stopIngestion(); stopTunnel(); staticServer?.close(); });
