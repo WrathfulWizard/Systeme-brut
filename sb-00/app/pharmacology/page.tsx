@@ -60,9 +60,10 @@ export default function Pharmacology() {
         </div>
 
         <div className="block">
+          <ProtocolAddForm defaultRoute="oral" label="Add oral / supplement" />
           <p className="eyebrow">Orals &amp; supplements</p>
           <p className="synced-note">Cialis, Accutane, AIs, SERMs, orals — run as a daily protocol (above) or log one-off doses below.</p>
-          {protocolTable(orals, 'No oral/supplement protocol. Add one above (route Oral), or log a one-off dose below.')}
+          {protocolTable(orals, 'No oral/supplement protocol. Add one above, or log a one-off dose below.')}
           <div style={{ marginTop: 12 }}>
             <AdminLogForm />
             {administrations.length > 0 && (
@@ -91,7 +92,7 @@ export default function Pharmacology() {
           <p className="synced-note">
             Estimated from your log + each compound&apos;s half-life. Relative units for trend &amp; accumulation — not a blood assay.
           </p>
-          <p className="eyebrow" style={{ marginTop: 16 }}>Per-compound — tap to chart</p>
+          <p className="eyebrow" style={{ marginTop: 16 }}>Serum levels — tap to chart</p>
           <SerumDetail compounds={serumByCompound} />
         </div>
 

@@ -31,8 +31,36 @@ export function openDb(dbPath: string): Database.Database {
   return db;
 }
 
+/**
+ * One-shot purge of the cardio + substrate demo rows the seed plants, so a real
+ * instance isn't haunted by mockup numbers. Targets only seed-shaped rows (the
+ * source / external_id / fixed timestamps the live ingest paths never produce)
+ * and is gated by a flag so it runs once and can never touch data logged later.
+ */
+function clearSeedSampleDataOnce(db: Database.Database) {
+  if (db.prepare("SELECT 1 FROM settings WHERE key='seed_sample_cleared'").get()) return;
+  db.exec(`
+    DELETE FROM cardio_sessions WHERE external_id LIKE 'seed_strava_%';
+    DELETE FROM nutrition_logs WHERE source='cronometer_via_apple_health';
+    DELETE FROM micronutrients WHERE source IS NULL;
+    DELETE FROM wearable_readings
+      WHERE metric='body_mass' AND device_source='manual'
+        AND measured_at IN ('2026-06-11T06:30:00','2026-06-13T06:30:00','2026-06-15T06:30:00','2026-06-17T06:30:00');
+  `);
+  const delInsight = db.prepare('DELETE FROM insights WHERE body = ?');
+  for (const body of [
+    "Sodium elevated 4th straight day. Cross-check against this week's BP readings.",
+    'ALT 24% over range, 9d into an oral. Suggest follow-up.',
+    'HDL below range, third panel running.',
+    'Squat tonnage trending up 3 weeks running.',
+    'Vitamin D trending down three weeks, consistent with reduced outdoor training.',
+  ]) delInsight.run(body);
+  db.prepare("INSERT OR REPLACE INTO settings(key, value) VALUES ('seed_sample_cleared','1')").run();
+}
+
 /** Idempotent migrations for DBs created before a feature landed. */
 function migrate(db: Database.Database) {
+  clearSeedSampleDataOnce(db);
   // cardio_sessions.sport (multi-sport: run / ride / swim)
   const cols = db.prepare('PRAGMA table_info(cardio_sessions)').all() as { name: string }[];
   if (!cols.some((c) => c.name === 'sport')) {

@@ -10,7 +10,7 @@ const LABEL: Record<SourceId, string> = {
 };
 const HOW: Record<SourceId, string> = {
   strava: 'Real API — OAuth, then runs/rides/swims pull on a 15-min schedule into Cardio.',
-  cronometer: 'Import the CSV you export from Cronometer (reliable, no login). Or link credentials to auto-pull the daily export.',
+  cronometer: 'Sign in once in the Cronometer window — the session is kept and auto-syncs hourly. CSV import is a no-login fallback.',
   apple_health: 'Push only — point the Health Auto Export app (or a Shortcut) at the endpoint below. Phone and PC must be on the same Wi-Fi.',
 };
 
@@ -20,7 +20,7 @@ function dot(status: ConnectionState['status']) {
 }
 
 export default function Connections() {
-  const { sync, isDesktop, connectStrava, connectCronometer, importCronometerCsv, disconnect, syncNow, saveStravaApp, agent, refreshAgent, setAgentModel } = useSb();
+  const { sync, isDesktop, connectStrava, connectCronometerBrowser, importCronometerCsv, disconnect, syncNow, saveStravaApp, agent, refreshAgent, setAgentModel } = useSb();
   const [cronUser, setCronUser] = useState('');
   const [cronPass, setCronPass] = useState('');
   const [cronNote, setCronNote] = useState('');
@@ -108,21 +108,27 @@ export default function Connections() {
 
               {s === 'cronometer' && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  {/* Primary: credential auto-sync (enter once → pulls hourly). */}
+                  {/* Primary: sign in once in a real browser window → session persists, pulls hourly. */}
                   {c.status === 'connected'
                     ? <div className="btnrow-inline">
-                        <span className="mono" style={{ fontSize: 11, color: 'var(--dim)', alignSelf: 'center' }}>Auto-syncs hourly.</span>
+                        <span className="mono" style={{ fontSize: 11, color: 'var(--dim)', alignSelf: 'center' }}>Signed in · auto-syncs hourly.</span>
                         <button className="btn" disabled={busy === s} onClick={wrap(s, () => syncNow('cronometer'))}>Sync now</button>
                         <button className="btn" disabled={busy === s} onClick={wrap(s, () => disconnect('cronometer'))}>Disconnect</button>
                       </div>
                     : <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-                        <input className="fld" placeholder="email" value={cronUser} onChange={(e) => setCronUser(e.target.value)} />
-                        <input className="fld" placeholder="password" type="password" value={cronPass} onChange={(e) => setCronPass(e.target.value)} />
-                        <button className="btn" disabled={!isDesktop || busy === s || !cronUser || !cronPass}
-                          onClick={wrap(s, async () => { await connectCronometer(cronUser, cronPass); setCronPass(''); })}>
-                          {busy === s ? 'Linking…' : 'Link & auto-sync'}
+                        <input className="fld" placeholder="email (optional — for auto re-link)" value={cronUser} onChange={(e) => setCronUser(e.target.value)} />
+                        <input className="fld" placeholder="password (optional)" type="password" value={cronPass} onChange={(e) => setCronPass(e.target.value)} />
+                        <button className="btn" disabled={!isDesktop || busy === s}
+                          onClick={wrap(s, async () => { await connectCronometerBrowser(cronUser || undefined, cronPass || undefined); setCronPass(''); })}>
+                          {busy === s ? 'Opening sign-in…' : 'Sign in to Cronometer'}
                         </button>
                       </div>}
+                  {c.status !== 'connected' && (
+                    <p className="mono" style={{ fontSize: 11, color: 'var(--dim)', margin: 0 }}>
+                      A Cronometer window opens — sign in once. The session is remembered, so you won&apos;t sign in again unless it expires.
+                      Saving email/password lets it re-link itself silently.
+                    </p>
+                  )}
                   {c.status === 'error' && c.detail && (
                     <p className="mono" style={{ fontSize: 11, color: 'var(--mag)', margin: 0 }}>{c.detail}</p>
                   )}
@@ -134,7 +140,7 @@ export default function Connections() {
                         onChange={(e) => onCronCsv(e.target.files?.[0])} />
                     </label>
                     <span className="mono" style={{ fontSize: 11, color: 'var(--dim)' }}>
-                      Fallback if auto-sync is blocked: Account → Export Data → “Daily Nutrition”.
+                      No-login fallback: Account → Export Data → “Daily Nutrition”.
                     </span>
                   </div>
                   {cronNote && <p className="mono" style={{ fontSize: 11, color: 'var(--text)', margin: 0 }}>{cronNote}</p>}

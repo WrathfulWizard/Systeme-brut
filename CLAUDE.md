@@ -32,6 +32,21 @@ first.**
   `secrets.bin` — **never** in SQLite or committed.
 - Never commit secrets (Supabase keys, Strava tokens, `secrets.bin`, `*.db`).
 
+## Repo hygiene
+
+`main` must always reflect the latest shipped version — after pushing feature
+work, merge it into `main` so the repo's default branch is never stale.
+
+## Coding stance (ponytail)
+
+Write only what's necessary. Before implementing, walk the ladder: (1) does this
+need to exist? skip if not — YAGNI; (2) does stdlib/the platform already do it?
+(3) is it already an installed dependency? reuse it; (4) can it be one line?
+(5) only then, the minimum viable solution. No unrequested abstractions, no
+speculative config, no scaffolding nobody asked for. **Never** trade away
+trust-boundary validation, data-loss prevention, security, or accessibility for
+brevity.
+
 ## Working in SB-00
 
 ```bash

@@ -204,6 +204,8 @@ export interface SbBridge {
   getConnections(): Promise<SyncMeta>;
   connectStrava(): Promise<SyncMeta>;
   connectCronometer(username: string, password: string): Promise<ConnectionState>;
+  /** Sign in via a real browser window (beats bot protection; session persists). */
+  connectCronometerBrowser(username?: string, password?: string): Promise<ConnectionState>;
   /** Import a Cronometer CSV the user exported themselves (ToS-clean, reliable). */
   importCronometerCsv(csv: string): Promise<{ ok: boolean; days: number; error?: string }>;
   disconnect(source: SourceId): Promise<SyncMeta>;

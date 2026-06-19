@@ -167,12 +167,12 @@ export function AdminLogForm({ editing, onDone }: { editing?: AdminRow | null; o
 }
 
 /* ---- Pharmacology: start a continuous protocol -------------------------- */
-export function ProtocolAddForm() {
+export function ProtocolAddForm({ defaultRoute = 'IM', label = 'Add compound' }: { defaultRoute?: string; label?: string } = {}) {
   const { snapshot, addProtocol, isDesktop } = useSb();
   const [open, setOpen] = useState(false);
   const [compound, setCompound] = useState('');
   const [dose, setDose] = useState('');
-  const [route, setRoute] = useState('IM');
+  const [route, setRoute] = useState(defaultRoute);
   const [started, setStarted] = useState(today());
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
@@ -189,7 +189,7 @@ export function ProtocolAddForm() {
 
   return (
     <>
-      <Toggle open={open} onClick={() => setOpen((v) => !v)} label="Add compound" />
+      <Toggle open={open} onClick={() => setOpen((v) => !v)} label={label} />
       {open && (
         <div className="logform">
           <div className="field"><label>Compound</label>

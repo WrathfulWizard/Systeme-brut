@@ -1,6 +1,6 @@
 import { getDb } from '../db/index';
 import { setConnection } from '../db/queries';
-import { getCronometer } from './secrets';
+import { getCronometer, getCronometerSession } from './secrets';
 
 /**
  * Cronometer ingestion — UNOFFICIAL.
@@ -302,6 +302,24 @@ export function importCronometerCsv(csv: string): number {
   const n = writeDailyNutrition(days);
   setConnection('cronometer', { status: 'connected', detail: `CSV import · ${n} days`, lastSyncAt: new Date().toISOString() });
   return n;
+}
+
+/**
+ * The browser-session sync (a real Chromium login that beats the bot
+ * protection) lives in cronometer-browser.ts because it needs Electron. main.ts
+ * registers it here so the shared poll loop can prefer it without importing
+ * Electron into the pure ingest layer.
+ */
+let sessionSyncImpl: (() => Promise<number>) | null = null;
+export function registerCronometerSessionSync(fn: () => Promise<number>) { sessionSyncImpl = fn; }
+
+/** Whether Cronometer is linked by either path (browser session or password). */
+export function cronometerLinked(): boolean { return !!getCronometerSession() || !!getCronometer(); }
+
+/** Sync via whichever path is set up — browser session first, password fallback. */
+export async function syncCronometerAny(): Promise<number> {
+  if (getCronometerSession() && sessionSyncImpl) return sessionSyncImpl();
+  return syncCronometer();
 }
 
 /** Login with stored creds, pull the trailing 14 days, write to DB. */

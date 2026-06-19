@@ -24,7 +24,9 @@ export function lanAddress(): string {
   const candidates: string[] = [];
   for (const list of Object.values(ifaces)) {
     for (const ni of list ?? []) {
-      if (ni.family === 'IPv4' && !ni.internal) candidates.push(ni.address);
+      // Skip loopback and 169.254.x APIPA (a self-assigned address looks valid
+      // but the phone can never reach it — a common "invalid/unreachable" cause).
+      if (ni.family === 'IPv4' && !ni.internal && !ni.address.startsWith('169.254.')) candidates.push(ni.address);
     }
   }
   // Prefer common private ranges (home/office LAN) over anything exotic.
