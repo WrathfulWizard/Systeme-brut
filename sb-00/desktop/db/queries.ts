@@ -230,6 +230,26 @@ export function getSnapshot(): Snapshot {
     'SELECT logged_on AS day, calories_kcal AS kcal FROM nutrition_logs WHERE meal IS NULL ORDER BY logged_on DESC LIMIT 7',
   ).all() as { day: string; kcal: number }[]).reverse().map((r) => ({ day: weekday(r.day), kcal: Math.round(r.kcal) }));
 
+  // Weekly calorie averages for the 4w / 8w / 12w views (oldest→newest, last 12).
+  const caloriesByWeek = (db.prepare(`
+    SELECT strftime('%Y-%W', logged_on) AS wk, MIN(logged_on) AS first_day, AVG(calories_kcal) AS kcal
+    FROM nutrition_logs WHERE meal IS NULL AND calories_kcal IS NOT NULL
+    GROUP BY wk ORDER BY first_day DESC LIMIT 12
+  `).all() as { wk: string; first_day: string; kcal: number }[])
+    .reverse().map((r) => ({ day: md(r.first_day), kcal: Math.round(r.kcal) }));
+
+  // body composition (caliper bf% + tape measurements), newest first
+  const bodyComposition = (db.prepare(`
+    SELECT id, measured_on AS at, weight_kg AS w, body_fat_pct AS bf,
+           chest_cm AS ch, arm_cm AS ar, thigh_cm AS th, waist_cm AS wa
+    FROM body_metrics ORDER BY measured_on DESC LIMIT 24
+  `).all() as { id: number; at: string; w: number | null; bf: number | null; ch: number | null; ar: number | null; th: number | null; wa: number | null }[])
+    .map((r) => ({
+      id: r.id, date: md(r.at), iso: r.at.slice(0, 10),
+      weightKg: r.w ?? undefined, bodyFatPct: r.bf ?? undefined,
+      chestCm: r.ch ?? undefined, armCm: r.ar ?? undefined, thighCm: r.th ?? undefined, waistCm: r.wa ?? undefined,
+    }));
+
   const micros = db.prepare(
     'SELECT nutrient, kind, amount, unit, target_amount AS tgt, rda_pct AS rda FROM micronutrients WHERE logged_on = (SELECT MAX(logged_on) FROM micronutrients) ORDER BY id',
   ).all() as { nutrient: string; kind: string; amount: number; unit: string; tgt: number; rda: number }[];
@@ -237,14 +257,21 @@ export function getSnapshot(): Snapshot {
     nutrient: m.nutrient, amount: `${m.amount} ${m.unit}`, rda: m.rda != null ? `${Math.round(m.rda)}%` : '—',
     flagged: m.rda != null && m.rda < 50,
   }));
-  const minerals = micros.filter((m) => m.kind !== 'vitamin').map((m) => {
+  const minerals = micros.filter((m) => m.kind === 'mineral' || m.kind === 'electrolyte').map((m) => {
     const overSodium = m.nutrient === 'Sodium' && m.tgt != null && m.amount > m.tgt;
+    const lowTrace = m.rda != null && m.rda < 50;
     return {
       mineral: m.nutrient, amount: `${m.amount} ${m.unit}`,
       target: m.nutrient === 'Sodium' ? `<${m.tgt} ${m.unit}` : m.tgt != null ? `${m.tgt} ${m.unit}` : '—',
-      flagged: overSodium,
+      flagged: overSodium || lowTrace,
     };
   });
+  // Essential fats (omega-3/6 etc.) get their own readout — omega-3 low is flagged.
+  const essentialFats = micros.filter((m) => m.kind === 'fat').map((m) => ({
+    mineral: m.nutrient, amount: `${m.amount} ${m.unit}`,
+    target: m.tgt != null ? `${m.tgt} ${m.unit}` : '—',
+    flagged: m.nutrient === 'Omega-3' && m.tgt != null && m.amount < m.tgt,
+  }));
 
   // bodyweight goal + trend
   const wGoal = db.prepare("SELECT target_value AS target, unit FROM goals WHERE metric='body_mass' AND status='active' LIMIT 1").get() as { target: number; unit: string } | undefined;
@@ -260,7 +287,7 @@ export function getSnapshot(): Snapshot {
     insights, recentSets, prLog, tonnage, trainingStatus: computeTrainingStatus(),
     cardioGoal, cardioProgression, recentRuns, cardioBySport, gear,
     protocols, administrations, titration, labResults, serum7d, serumByCompound,
-    dailyTotals, calories7d, vitamins, minerals, weightGoal,
+    dailyTotals, calories7d, caloriesByWeek, vitamins, minerals, essentialFats, bodyComposition, weightGoal,
     session: { id: 'SB-00', clock: '03:14:09' },
     syncMeta: getSyncMeta(),
     catalog: getCatalog(),

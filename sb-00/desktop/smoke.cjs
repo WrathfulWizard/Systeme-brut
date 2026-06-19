@@ -258,6 +258,30 @@ console.log('✓ protocol + titration  (test 14→16, deca 7→10) · flags reso
   console.log('✓ set kinds + deload     (rp sum=20, widowmaker miss flagged, stretch 60s, training status)');
 }
 
+// --- substrate: body composition + expanded micros + weekly calories ---
+{
+  mut.addBodyMetric({ measuredOn: '2026-06-17', weightKg: 89.4, bodyFatPct: 12.5, chestCm: 108, armCm: 41.5, thighCm: 62, waistCm: 81 });
+  let s = getSnapshot();
+  const bc = s.bodyComposition.find((b) => b.iso === '2026-06-17');
+  assert.ok(bc && bc.bodyFatPct === 12.5 && bc.waistCm === 81, 'body composition stored (caliper bf% + measurements)');
+  assert.ok(s.weightGoal.trend.some((w) => w.kg === 89.4), 'body-comp weight mirrors into the mass trend');
+
+  // expanded cronometer micros incl. omega-3 + a weight column
+  const cron = require('../dist-electron/desktop/ingest/cronometer.js');
+  const csv = [
+    'Date,Energy (kcal),Protein (g),Carbs (g),Fat (g),Fiber (g),Omega-3 (g),Iron (mg),Vitamin A (µg),Weight (kg)',
+    '2026-06-19,2700,210,300,80,30,1.1,18,950,89.2',
+  ].join('\n');
+  cron.importCronometerCsv(csv);
+  s = getSnapshot();
+  assert.ok(s.essentialFats.find((f) => f.mineral === 'Omega-3'), 'omega-3 parsed into its own essential-fats group');
+  assert.ok(s.vitamins.find((v) => v.nutrient === 'Vitamin A'), 'expanded vitamin set imported (Vitamin A)');
+  assert.ok(s.minerals.find((m) => m.mineral === 'Iron'), 'expanded minerals imported (Iron)');
+  assert.ok(s.weightGoal.trend.some((w) => w.kg === 89.2), 'cronometer weight column feeds the mass trend');
+  assert.ok(Array.isArray(s.caloriesByWeek), 'weekly calorie averages available for 4w/8w/12w views');
+  console.log('✓ substrate body+micros (bf%/measurements · omega-3 + vitamins/minerals · cronometer weight · weekly cals)');
+}
+
 // --- sweep: SB-Σ raises persistent flags, de-duplicated ---
 {
   const openBefore = getSnapshot().insights.length;

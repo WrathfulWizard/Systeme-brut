@@ -1,7 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron';
 import type {
   SbBridge, SyncMeta, SourceId, LiftInput, AdminInput, TitrationInput, LabPanelInput,
-  ProtocolInput, ChatMessage, ModelPullStatus,
+  ProtocolInput, ChatMessage, ModelPullStatus, BodyMetricInput,
 } from '../lib/types';
 
 /**
@@ -32,6 +32,8 @@ const bridge: SbBridge = {
   deleteTitration: (id: number) => ipcRenderer.invoke('sb:deleteTitration', id),
   addLabPanel: (input: LabPanelInput) => ipcRenderer.invoke('sb:addLabPanel', input),
   deleteLabPanel: (id: number) => ipcRenderer.invoke('sb:deleteLabPanel', id),
+  addBodyMetric: (input) => ipcRenderer.invoke('sb:addBodyMetric', input),
+  deleteBodyMetric: (id: number) => ipcRenderer.invoke('sb:deleteBodyMetric', id),
   saveStravaApp: (clientId: string, clientSecret: string) => ipcRenderer.invoke('sb:saveStravaApp', clientId, clientSecret),
   addProtocol: (input: ProtocolInput) => ipcRenderer.invoke('sb:addProtocol', input),
   titrateProtocol: (id: number, newDoseMg: number, note?: string) => ipcRenderer.invoke('sb:titrateProtocol', id, newDoseMg, note),

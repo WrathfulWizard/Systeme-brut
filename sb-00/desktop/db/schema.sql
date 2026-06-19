@@ -157,6 +157,18 @@ CREATE TABLE IF NOT EXISTS sleep_sessions (
   UNIQUE(started_at, device_source)
 );
 
+-- Body composition: caliper body-fat % + tape measurements + weight.
+CREATE TABLE IF NOT EXISTS body_metrics (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  measured_on TEXT NOT NULL UNIQUE,
+  weight_kg REAL,
+  body_fat_pct REAL,
+  chest_cm REAL,
+  arm_cm REAL,
+  thigh_cm REAL,
+  waist_cm REAL
+);
+
 -- ---- SB-Σ: the Synthesizer ----------------------------------------------
 CREATE TABLE IF NOT EXISTS insights (
   id INTEGER PRIMARY KEY AUTOINCREMENT,

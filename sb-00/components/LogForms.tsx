@@ -280,6 +280,59 @@ export function TitrationLogForm() {
   );
 }
 
+/* ---- Substrate: body composition (caliper bf% + tape measurements) ------ */
+export function BodyMetricLogForm() {
+  const { addBodyMetric, isDesktop } = useSb();
+  const [open, setOpen] = useState(false);
+  const [date, setDate] = useState(today());
+  const [weight, setWeight] = useState('');
+  const [bf, setBf] = useState('');
+  const [chest, setChest] = useState('');
+  const [arm, setArm] = useState('');
+  const [thigh, setThigh] = useState('');
+  const [waist, setWaist] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  if (!isDesktop) return <DesktopNote />;
+  const num = (s: string) => (s.trim() && !Number.isNaN(Number(s)) ? Number(s) : undefined);
+  const valid = [weight, bf, chest, arm, thigh, waist].some((v) => num(v) != null);
+  const submit = async () => {
+    setBusy(true);
+    try {
+      await addBodyMetric({
+        measuredOn: date, weightKg: num(weight), bodyFatPct: num(bf),
+        chestCm: num(chest), armCm: num(arm), thighCm: num(thigh), waistCm: num(waist),
+      });
+      setWeight(''); setBf(''); setChest(''); setArm(''); setThigh(''); setWaist(''); setOpen(false);
+    } finally { setBusy(false); }
+  };
+
+  return (
+    <>
+      <Toggle open={open} onClick={() => setOpen((v) => !v)} label="Log body composition" />
+      {open && (
+        <div className="logform" style={{ flexWrap: 'wrap' }}>
+          <div className="field"><label>Date</label>
+            <input className="fld" type="date" max={today()} value={date} onChange={(e) => setDate(e.target.value)} /></div>
+          <div className="field"><label>Weight (kg)</label>
+            <input className="fld w-narrow" type="number" inputMode="decimal" value={weight} onChange={(e) => setWeight(e.target.value)} /></div>
+          <div className="field"><label>Body fat % (caliper)</label>
+            <input className="fld w-narrow" type="number" inputMode="decimal" value={bf} onChange={(e) => setBf(e.target.value)} /></div>
+          <div className="field"><label>Chest (cm)</label>
+            <input className="fld w-narrow" type="number" inputMode="decimal" value={chest} onChange={(e) => setChest(e.target.value)} /></div>
+          <div className="field"><label>Arm (cm)</label>
+            <input className="fld w-narrow" type="number" inputMode="decimal" value={arm} onChange={(e) => setArm(e.target.value)} /></div>
+          <div className="field"><label>Thigh (cm)</label>
+            <input className="fld w-narrow" type="number" inputMode="decimal" value={thigh} onChange={(e) => setThigh(e.target.value)} /></div>
+          <div className="field"><label>Waist (cm)</label>
+            <input className="fld w-narrow" type="number" inputMode="decimal" value={waist} onChange={(e) => setWaist(e.target.value)} /></div>
+          <button className="btn primary" disabled={!valid || busy} onClick={submit}>{busy ? 'Saving…' : 'Save entry'}</button>
+        </div>
+      )}
+    </>
+  );
+}
+
 /* ---- Pharmacology: lab panel (multiple results) ------------------------- */
 type Row = { marker: string; value: string; unit: string; low: string; high: string };
 const emptyRow = (): Row => ({ marker: '', value: '', unit: '', low: '', high: '' });

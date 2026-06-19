@@ -118,8 +118,15 @@ const numFrom = (r: Record<string, string>, ...keys: string[]) => {
 export interface DailyNutrition {
   date: string;
   calories?: number; protein?: number; carbs?: number; fat?: number; fiber?: number;
+  weight?: number;
+  // electrolytes / minerals
   sodium?: number; potassium?: number; magnesium?: number; calcium?: number;
-  vitaminD?: number; vitaminC?: number; vitaminB12?: number; folate?: number;
+  iron?: number; zinc?: number; phosphorus?: number; selenium?: number; copper?: number; manganese?: number;
+  // fats
+  omega3?: number; omega6?: number; saturated?: number; cholesterol?: number;
+  // vitamins
+  vitaminA?: number; vitaminC?: number; vitaminD?: number; vitaminE?: number; vitaminK?: number;
+  thiamin?: number; riboflavin?: number; niacin?: number; vitaminB6?: number; vitaminB12?: number; folate?: number;
 }
 
 export function parseDailyNutrition(csv: string): DailyNutrition[] {
@@ -134,12 +141,30 @@ export function parseDailyNutrition(csv: string): DailyNutrition[] {
         carbs: numFrom(r, 'Carbs (g)', 'Carbohydrates (g)', 'Net Carbs (g)', 'Carbs'),
         fat: numFrom(r, 'Fat (g)', 'Fat'),
         fiber: numFrom(r, 'Fiber (g)', 'Fiber'),
+        weight: numFrom(r, 'Weight (kg)', 'Weight'),
         sodium: numFrom(r, 'Sodium (mg)', 'Sodium'),
         potassium: numFrom(r, 'Potassium (mg)', 'Potassium'),
         magnesium: numFrom(r, 'Magnesium (mg)', 'Magnesium'),
         calcium: numFrom(r, 'Calcium (mg)', 'Calcium'),
-        vitaminD: numFrom(r, 'Vitamin D (IU)', 'Vitamin D'),
+        iron: numFrom(r, 'Iron (mg)', 'Iron'),
+        zinc: numFrom(r, 'Zinc (mg)', 'Zinc'),
+        phosphorus: numFrom(r, 'Phosphorus (mg)', 'Phosphorus'),
+        selenium: numFrom(r, 'Selenium (µg)', 'Selenium'),
+        copper: numFrom(r, 'Copper (mg)', 'Copper'),
+        manganese: numFrom(r, 'Manganese (mg)', 'Manganese'),
+        omega3: numFrom(r, 'Omega-3 (g)', 'Omega 3', 'Omega-3'),
+        omega6: numFrom(r, 'Omega-6 (g)', 'Omega 6', 'Omega-6'),
+        saturated: numFrom(r, 'Saturated (g)', 'Saturated Fat'),
+        cholesterol: numFrom(r, 'Cholesterol (mg)', 'Cholesterol'),
+        vitaminA: numFrom(r, 'Vitamin A (µg)', 'Vitamin A'),
         vitaminC: numFrom(r, 'Vitamin C (mg)', 'Vitamin C'),
+        vitaminD: numFrom(r, 'Vitamin D (IU)', 'Vitamin D'),
+        vitaminE: numFrom(r, 'Vitamin E (mg)', 'Vitamin E'),
+        vitaminK: numFrom(r, 'Vitamin K (µg)', 'Vitamin K'),
+        thiamin: numFrom(r, 'Thiamine (mg)', 'Thiamin (mg)', 'B1'),
+        riboflavin: numFrom(r, 'Riboflavin (mg)', 'B2'),
+        niacin: numFrom(r, 'Niacin (mg)', 'B3'),
+        vitaminB6: numFrom(r, 'Vitamin B6 (mg)', 'B6 (Pyridoxine) (mg)', 'B6'),
         vitaminB12: numFrom(r, 'B12 (Cobalamin) (µg)', 'Vitamin B12 (µg)', 'B12'),
         folate: numFrom(r, 'Folate (µg)', 'Folate'),
       } as DailyNutrition;
@@ -167,19 +192,50 @@ export function writeDailyNutrition(days: DailyNutrition[]): number {
   `);
 
   const rda = (v: number | undefined, target: number) => (v == null ? null : Math.round((v / target) * 100));
+  const upBody = db.prepare(`
+    INSERT INTO body_metrics (measured_on, weight_kg) VALUES (@d, @w)
+    ON CONFLICT(measured_on) DO UPDATE SET weight_kg=COALESCE(excluded.weight_kg, weight_kg)
+  `);
+  const upWeight = db.prepare(`
+    INSERT INTO wearable_readings (measured_at, metric, value, unit, device_source)
+    VALUES (@at, 'body_mass', @v, 'kg', 'cronometer')
+    ON CONFLICT(measured_at, metric, device_source) DO UPDATE SET value=excluded.value
+  `);
 
   const tx = db.transaction((rows: DailyNutrition[]) => {
     for (const r of rows) {
       upLog.run({ d: r.date, kcal: r.calories ?? null, p: r.protein ?? null, c: r.carbs ?? null, f: r.fat ?? null, fb: r.fiber ?? null });
+      // Bodyweight from Cronometer's biometrics column (if present in the export).
+      if (r.weight != null) { upBody.run({ d: r.date, w: r.weight }); upWeight.run({ at: `${r.date}T06:30:00`, v: r.weight }); }
       const micros: [string, string, number | undefined, string, number | null, number | null][] = [
-        ['Vitamin D', 'vitamin', r.vitaminD, 'IU', 600, rda(r.vitaminD, 600)],
-        ['Vitamin B12', 'vitamin', r.vitaminB12, 'µg', 2.4, rda(r.vitaminB12, 2.4)],
+        // vitamins
+        ['Vitamin A', 'vitamin', r.vitaminA, 'µg', 900, rda(r.vitaminA, 900)],
         ['Vitamin C', 'vitamin', r.vitaminC, 'mg', 90, rda(r.vitaminC, 90)],
+        ['Vitamin D', 'vitamin', r.vitaminD, 'IU', 600, rda(r.vitaminD, 600)],
+        ['Vitamin E', 'vitamin', r.vitaminE, 'mg', 15, rda(r.vitaminE, 15)],
+        ['Vitamin K', 'vitamin', r.vitaminK, 'µg', 120, rda(r.vitaminK, 120)],
+        ['Thiamin (B1)', 'vitamin', r.thiamin, 'mg', 1.2, rda(r.thiamin, 1.2)],
+        ['Riboflavin (B2)', 'vitamin', r.riboflavin, 'mg', 1.3, rda(r.riboflavin, 1.3)],
+        ['Niacin (B3)', 'vitamin', r.niacin, 'mg', 16, rda(r.niacin, 16)],
+        ['Vitamin B6', 'vitamin', r.vitaminB6, 'mg', 1.7, rda(r.vitaminB6, 1.7)],
+        ['Vitamin B12', 'vitamin', r.vitaminB12, 'µg', 2.4, rda(r.vitaminB12, 2.4)],
         ['Folate', 'vitamin', r.folate, 'µg', 400, rda(r.folate, 400)],
+        // minerals / electrolytes
         ['Sodium', 'electrolyte', r.sodium, 'mg', 2300, null],
         ['Potassium', 'electrolyte', r.potassium, 'mg', 3400, null],
         ['Magnesium', 'mineral', r.magnesium, 'mg', 400, null],
         ['Calcium', 'mineral', r.calcium, 'mg', 1000, null],
+        ['Iron', 'mineral', r.iron, 'mg', 8, rda(r.iron, 8)],
+        ['Zinc', 'mineral', r.zinc, 'mg', 11, rda(r.zinc, 11)],
+        ['Phosphorus', 'mineral', r.phosphorus, 'mg', 700, null],
+        ['Selenium', 'mineral', r.selenium, 'µg', 55, rda(r.selenium, 55)],
+        ['Copper', 'mineral', r.copper, 'mg', 0.9, rda(r.copper, 0.9)],
+        ['Manganese', 'mineral', r.manganese, 'mg', 2.3, null],
+        // essential fats
+        ['Omega-3', 'fat', r.omega3, 'g', 1.6, null],
+        ['Omega-6', 'fat', r.omega6, 'g', 17, null],
+        ['Saturated fat', 'fat', r.saturated, 'g', null, null],
+        ['Cholesterol', 'fat', r.cholesterol, 'mg', null, null],
       ];
       for (const [n, kind, amt, unit, tgt, rp] of micros) {
         if (amt == null) continue;

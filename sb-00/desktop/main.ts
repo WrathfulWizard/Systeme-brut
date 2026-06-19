@@ -11,10 +11,11 @@ import {
   addSet, updateSet, deleteSet, addAdministration, updateAdministration, deleteAdministration,
   addTitration, deleteTitration, addLabPanel, deleteLabPanel,
   addProtocol, titrateProtocol, endProtocol, deleteProtocol, resolveInsight,
+  addBodyMetric, deleteBodyMetric,
 } from './db/mutations';
 import { agentStatus, setAgentModel, agentChat, agentReview, agentSweep, type StreamHandlers } from './agent/ollama';
 import { ensureOllamaRunning, pullDefaultIfEmpty } from './agent/launch';
-import type { LiftInput, AdminInput, TitrationInput, LabPanelInput, ProtocolInput, ChatMessage } from '../lib/types';
+import type { LiftInput, AdminInput, TitrationInput, LabPanelInput, ProtocolInput, ChatMessage, BodyMetricInput } from '../lib/types';
 import { initSecrets, setCronometer, setStravaApp } from './ingest/secrets';
 import { startIngestion, stopIngestion, syncNow, disconnect, meta } from './ingest/index';
 import { buildAuthUrl, exchangeCode, syncStrava, STRAVA_REDIRECT_PORT } from './ingest/strava';
@@ -105,6 +106,8 @@ function registerIpc() {
   ipcMain.handle('sb:deleteTitration', (_e, id: number) => { deleteTitration(id); return getSnapshot(); });
   ipcMain.handle('sb:addLabPanel', (_e, input: LabPanelInput) => { addLabPanel(input); return getSnapshot(); });
   ipcMain.handle('sb:deleteLabPanel', (_e, id: number) => { deleteLabPanel(id); return getSnapshot(); });
+  ipcMain.handle('sb:addBodyMetric', (_e, input: BodyMetricInput) => { addBodyMetric(input); return getSnapshot(); });
+  ipcMain.handle('sb:deleteBodyMetric', (_e, id: number) => { deleteBodyMetric(id); return getSnapshot(); });
   ipcMain.handle('sb:saveStravaApp', (_e, clientId: string, clientSecret: string) => {
     setStravaApp({ clientId: clientId.trim(), clientSecret: clientSecret.trim() });
     return meta();

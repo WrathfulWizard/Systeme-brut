@@ -1,6 +1,6 @@
 import { getDb } from './index';
 import { computeTrainingStatus } from './training';
-import type { LiftInput, AdminInput, TitrationInput, LabPanelInput, ProtocolInput } from '../../lib/types';
+import type { LiftInput, AdminInput, TitrationInput, LabPanelInput, ProtocolInput, BodyMetricInput } from '../../lib/types';
 
 /** Effective rep count for volume: RP sums its bursts, a stretch is held not repped. */
 function effectiveReps(input: LiftInput): number {
@@ -154,6 +154,40 @@ export function deleteTitration(id: number) {
 export function deleteLabPanel(id: number) {
   // lab_results cascade on panel delete (FK ON DELETE CASCADE)
   getDb().prepare('DELETE FROM lab_panels WHERE id = ?').run(id);
+}
+
+/* ---- body composition (caliper bf% + tape measurements) ----------------- */
+
+/** Upsert a day's body composition. Weight here also feeds the mass trend. */
+export function addBodyMetric(input: BodyMetricInput) {
+  const db = getDb();
+  const day = input.measuredOn.slice(0, 10);
+  db.prepare(`
+    INSERT INTO body_metrics (measured_on, weight_kg, body_fat_pct, chest_cm, arm_cm, thigh_cm, waist_cm)
+    VALUES (@d, @w, @bf, @ch, @ar, @th, @wa)
+    ON CONFLICT(measured_on) DO UPDATE SET
+      weight_kg=COALESCE(excluded.weight_kg, weight_kg),
+      body_fat_pct=COALESCE(excluded.body_fat_pct, body_fat_pct),
+      chest_cm=COALESCE(excluded.chest_cm, chest_cm),
+      arm_cm=COALESCE(excluded.arm_cm, arm_cm),
+      thigh_cm=COALESCE(excluded.thigh_cm, thigh_cm),
+      waist_cm=COALESCE(excluded.waist_cm, waist_cm)
+  `).run({
+    d: day, w: input.weightKg ?? null, bf: input.bodyFatPct ?? null,
+    ch: input.chestCm ?? null, ar: input.armCm ?? null, th: input.thighCm ?? null, wa: input.waistCm ?? null,
+  });
+  // Mirror weight into wearable_readings so the bodyweight trend includes it.
+  if (input.weightKg != null) {
+    db.prepare(`
+      INSERT INTO wearable_readings (measured_at, metric, value, unit, device_source)
+      VALUES (?, 'body_mass', ?, 'kg', 'manual')
+      ON CONFLICT(measured_at, metric, device_source) DO UPDATE SET value=excluded.value
+    `).run(`${day}T06:30:00`, input.weightKg);
+  }
+}
+
+export function deleteBodyMetric(id: number) {
+  getDb().prepare('DELETE FROM body_metrics WHERE id = ?').run(id);
 }
 
 /* ---- continuous protocol (Node B rework) -------------------------------- */

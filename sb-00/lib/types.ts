@@ -57,6 +57,17 @@ export interface SerumCompound {
 }
 export interface TotalRow { nutrient: string; today: string; target: string; delta: string; }
 export interface CaloriePoint { day: string; kcal: number; }
+/** Body composition: caliper body-fat % + tape measurements + weight. */
+export interface BodyMetricRow {
+  id: number; date: string; iso: string;
+  weightKg?: number; bodyFatPct?: number;
+  chestCm?: number; armCm?: number; thighCm?: number; waistCm?: number;
+}
+export interface BodyMetricInput {
+  measuredOn: string;
+  weightKg?: number; bodyFatPct?: number;
+  chestCm?: number; armCm?: number; thighCm?: number; waistCm?: number;
+}
 export interface VitaminRow { nutrient: string; amount: string; rda: string; flagged: boolean; }
 export interface MineralRow { mineral: string; amount: string; target: string; flagged: boolean; }
 
@@ -83,8 +94,14 @@ export interface Snapshot {
   serumByCompound: SerumCompound[];
   dailyTotals: TotalRow[];
   calories7d: CaloriePoint[];
+  /** longer calorie trend for 4w / 8w / 12w views (weekly averages) */
+  caloriesByWeek: CaloriePoint[];
   vitamins: VitaminRow[];
   minerals: MineralRow[];
+  /** essential fats — omega-3/6, saturated, cholesterol */
+  essentialFats: MineralRow[];
+  /** body composition: latest + history (caliper bf% + tape measurements) */
+  bodyComposition: BodyMetricRow[];
   /** bodyweight goal + latest reading + trend (Substrate node + goal corner) */
   weightGoal: { current?: number; target: number; unit: string; trend: { day: string; kg: number }[] };
   session: { id: string; clock: string };
@@ -189,6 +206,9 @@ export interface SbBridge {
   deleteTitration(id: number): Promise<Snapshot>;
   addLabPanel(input: LabPanelInput): Promise<Snapshot>;
   deleteLabPanel(id: number): Promise<Snapshot>;
+  /* substrate: body composition (caliper bf% + tape measurements) */
+  addBodyMetric(input: BodyMetricInput): Promise<Snapshot>;
+  deleteBodyMetric(id: number): Promise<Snapshot>;
   /* pharmacology protocol */
   addProtocol(input: ProtocolInput): Promise<Snapshot>;
   titrateProtocol(id: number, newDoseMg: number, note?: string): Promise<Snapshot>;

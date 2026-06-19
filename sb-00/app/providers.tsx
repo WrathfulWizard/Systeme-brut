@@ -4,7 +4,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import type {
   Snapshot, SyncMeta, SourceId, ConnectionState, SbBridge,
   LiftInput, AdminInput, TitrationInput, LabPanelInput, ProtocolInput, AgentStatus, SweepResult,
-  ModelPullStatus,
+  ModelPullStatus, BodyMetricInput,
 } from '@/lib/types';
 import { seedSnapshot } from '@/lib/seed-data';
 
@@ -32,6 +32,8 @@ interface Ctx {
   deleteTitration: (id: number) => Promise<void>;
   addLabPanel: (input: LabPanelInput) => Promise<void>;
   deleteLabPanel: (id: number) => Promise<void>;
+  addBodyMetric: (input: BodyMetricInput) => Promise<void>;
+  deleteBodyMetric: (id: number) => Promise<void>;
   saveStravaApp: (clientId: string, clientSecret: string) => Promise<void>;
   addProtocol: (input: ProtocolInput) => Promise<void>;
   titrateProtocol: (id: number, newDoseMg: number, note?: string) => Promise<void>;
@@ -106,6 +108,8 @@ export function Providers({ children }: { children: React.ReactNode }) {
     deleteTitration: async (id) => { if (window.sb) { const s = await window.sb.deleteTitration(id); setSnapshot(s); setSync(s.syncMeta); } },
     addLabPanel: async (input) => { if (window.sb) { const s = await window.sb.addLabPanel(input); setSnapshot(s); setSync(s.syncMeta); } },
     deleteLabPanel: async (id) => { if (window.sb) { const s = await window.sb.deleteLabPanel(id); setSnapshot(s); setSync(s.syncMeta); } },
+    addBodyMetric: async (input) => { if (window.sb) { const s = await window.sb.addBodyMetric(input); setSnapshot(s); setSync(s.syncMeta); } },
+    deleteBodyMetric: async (id) => { if (window.sb) { const s = await window.sb.deleteBodyMetric(id); setSnapshot(s); setSync(s.syncMeta); } },
     saveStravaApp: async (clientId, clientSecret) => { if (window.sb) setSync(await window.sb.saveStravaApp(clientId, clientSecret)); },
     addProtocol: async (input) => { if (window.sb) { const s = await window.sb.addProtocol(input); setSnapshot(s); setSync(s.syncMeta); } },
     titrateProtocol: async (id, mg, note) => { if (window.sb) { const s = await window.sb.titrateProtocol(id, mg, note); setSnapshot(s); setSync(s.syncMeta); } },

@@ -112,6 +112,10 @@ export const seedSnapshot: Snapshot = {
     { day: 'MON', kcal: 2640 }, { day: 'TUE', kcal: 2510 }, { day: 'WED', kcal: 2980 },
     { day: 'THU', kcal: 2860 }, { day: 'FRI', kcal: 3020 }, { day: 'SAT', kcal: 2750 }, { day: 'SUN', kcal: 2840 },
   ],
+  caloriesByWeek: [
+    { day: '05.04', kcal: 2710 }, { day: '05.11', kcal: 2680 }, { day: '05.18', kcal: 2760 },
+    { day: '05.25', kcal: 2820 }, { day: '06.01', kcal: 2790 }, { day: '06.08', kcal: 2860 },
+  ],
   vitamins: [
     { nutrient: 'Vitamin D', amount: '9.2 µg', rda: '46%', flagged: true },
     { nutrient: 'Vitamin B12', amount: '6.1 µg', rda: '254%', flagged: false },
@@ -123,7 +127,19 @@ export const seedSnapshot: Snapshot = {
     { mineral: 'Potassium', amount: '3100 mg', target: '3400 mg', flagged: false },
     { mineral: 'Magnesium', amount: '340 mg', target: '400 mg', flagged: false },
     { mineral: 'Calcium', amount: '980 mg', target: '1000 mg', flagged: false },
-    { mineral: 'Chloride', amount: '2700 mg', target: '2300 mg', flagged: false },
+    { mineral: 'Iron', amount: '14 mg', target: '8 mg', flagged: false },
+    { mineral: 'Zinc', amount: '12 mg', target: '11 mg', flagged: false },
+  ],
+  essentialFats: [
+    { mineral: 'Omega-3', amount: '1.2 g', target: '1.6 g', flagged: true },
+    { mineral: 'Omega-6', amount: '14 g', target: '17 g', flagged: false },
+    { mineral: 'Saturated fat', amount: '28 g', target: '—', flagged: false },
+    { mineral: 'Cholesterol', amount: '410 mg', target: '—', flagged: false },
+  ],
+  bodyComposition: [
+    { id: 1, date: '06.17', iso: '2026-06-17', weightKg: 89.4, bodyFatPct: 12.5, chestCm: 108, armCm: 41.5, thighCm: 62, waistCm: 81 },
+    { id: 2, date: '06.10', iso: '2026-06-10', weightKg: 90.1, bodyFatPct: 13.1, chestCm: 108, armCm: 41.2, thighCm: 61.5, waistCm: 82 },
+    { id: 3, date: '06.03', iso: '2026-06-03', weightKg: 90.6, bodyFatPct: 13.6, chestCm: 107, armCm: 41, thighCm: 61, waistCm: 82.5 },
   ],
   weightGoal: {
     current: 89.4, target: 86, unit: 'kg',

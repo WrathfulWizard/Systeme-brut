@@ -71,6 +71,14 @@ function migrate(db: Database.Database) {
   if (!scols.some((c) => c.name === 'seconds')) db.exec('ALTER TABLE sets ADD COLUMN seconds INTEGER');
   if (!scols.some((c) => c.name === 'target_reps')) db.exec('ALTER TABLE sets ADD COLUMN target_reps INTEGER');
 
+  // body_metrics (caliper body-fat % + tape measurements) for older DBs
+  db.exec(`CREATE TABLE IF NOT EXISTS body_metrics (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    measured_on TEXT NOT NULL UNIQUE,
+    weight_kg REAL, body_fat_pct REAL,
+    chest_cm REAL, arm_cm REAL, thigh_cm REAL, waist_cm REAL
+  )`);
+
   // Backfill a continuous protocol from each compound's latest dose.
   const protoCount = (db.prepare('SELECT COUNT(*) AS n FROM protocols').get() as { n: number }).n;
   if (protoCount === 0) {
