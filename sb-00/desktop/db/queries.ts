@@ -189,6 +189,8 @@ export function getSnapshot(): Snapshot {
     .map((r) => ({
       id: r.id, compound: r.compound, dose: `${r.dose}mg daily`,
       route: r.route === 'oral' ? 'Oral' : r.route, doseMg: r.dose, route_raw: r.route, since: md(r.since),
+      // Oral by route OR by the compound's own form (e.g. cialis/accutane logged IM-less).
+      form: (r.route === 'oral' || lookup(r.compound).form === 'oral') ? 'oral' as const : 'injectable' as const,
     }));
 
   const administrations = (db.prepare(`

@@ -76,8 +76,8 @@ export const seedSnapshot: Snapshot = {
     { id: 3, name: 'Canyon Endurace', kind: 'bike', km: 1240.0, retired: false, source: 'strava' },
   ],
   protocols: [
-    { id: 1, compound: 'Testosterone Cyp', dose: '14mg daily', route: 'IM', doseMg: 14, route_raw: 'IM', since: '05.01' },
-    { id: 2, compound: 'Anavar', dose: '20mg daily', route: 'Oral', doseMg: 20, route_raw: 'oral', since: '05.20' },
+    { id: 1, compound: 'Testosterone Cyp', dose: '14mg daily', route: 'IM', doseMg: 14, route_raw: 'IM', since: '05.01', form: 'injectable' },
+    { id: 2, compound: 'Anavar', dose: '20mg daily', route: 'Oral', doseMg: 20, route_raw: 'oral', since: '05.20', form: 'oral' },
   ],
   administrations: [
     { id: 1, date: '06.17', compound: 'Testosterone Cyp', dose: '14mg', route: 'IM', iso: '2026-06-17', doseMg: 14, routeRaw: 'IM' },

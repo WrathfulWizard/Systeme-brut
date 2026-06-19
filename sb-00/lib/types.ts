@@ -28,7 +28,7 @@ export interface Bar { lift: string; value: number; }
 export interface CardioPoint { date: string; distance: number; }
 export interface RunRow { date: string; distance: string; pace: string; source: string; sport: Sport; duration?: string; }
 /** A continuous compound protocol — current daily dose, titrated over time. */
-export interface ProtocolRow { id: number; compound: string; dose: string; route: string; doseMg: number; route_raw: string; since: string; }
+export interface ProtocolRow { id: number; compound: string; dose: string; route: string; doseMg: number; route_raw: string; since: string; form: 'injectable' | 'oral'; }
 export interface AdminRow {
   id: number; date: string; compound: string; dose: string; route: string;
   iso: string; doseMg: number; routeRaw: string;

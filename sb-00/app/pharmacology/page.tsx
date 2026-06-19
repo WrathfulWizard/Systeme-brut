@@ -3,18 +3,49 @@
 import { useState, Fragment } from 'react';
 import HubFrame from '@/components/HubFrame';
 import { Feed } from '@/components/Feed';
-import { ProtocolAddForm, TitrateForm, LabPanelLogForm } from '@/components/LogForms';
+import { ProtocolAddForm, TitrateForm, LabPanelLogForm, AdminLogForm } from '@/components/LogForms';
 import SerumLiquidRender from '@/components/SerumLiquidRender';
 import SerumDetail from '@/components/SerumDetail';
 import { useSb } from '../providers';
+import type { ProtocolRow } from '@/lib/types';
 
 export default function Pharmacology() {
-  const { snapshot, endProtocol, deleteProtocol, deleteTitration, deleteLabPanel, resolveInsight, isDesktop } = useSb();
-  const { insights, protocols, titration, labResults, labPanelId, serumByCompound } = snapshot;
+  const { snapshot, endProtocol, deleteProtocol, deleteTitration, deleteLabPanel, deleteAdministration, resolveInsight, isDesktop } = useSb();
+  const { insights, protocols, administrations, titration, labResults, labPanelId, serumByCompound } = snapshot;
   const pharmFlags = insights.filter((i) => i.nodes.includes('pharmacology'));
   const [titrating, setTitrating] = useState<number | null>(null);
 
   const totalCurrent = serumByCompound.reduce((m, c) => m + c.current, 0);
+  const injectables = protocols.filter((p) => p.form !== 'oral');
+  const orals = protocols.filter((p) => p.form === 'oral');
+
+  const protocolTable = (rows: ProtocolRow[], emptyMsg: string) => (
+    <table>
+      <tbody>
+        <tr><th>Compound</th><th>Daily dose</th><th>Route</th><th>Since</th>{isDesktop && <th />}</tr>
+        {rows.map((p) => (
+          <Fragment key={p.id}>
+            <tr>
+              <td>{p.compound}</td><td>{p.dose}</td><td>{p.route}</td><td>{p.since}</td>
+              {isDesktop && (
+                <td className="rowact">
+                  <button className="rowbtn" onClick={() => setTitrating(titrating === p.id ? null : p.id)}>titrate</button>
+                  <button className="rowbtn" onClick={() => endProtocol(p.id)}>end</button>
+                  <button className="rowbtn del" onClick={() => deleteProtocol(p.id)}>del</button>
+                </td>
+              )}
+            </tr>
+            {titrating === p.id && (
+              <tr><td colSpan={5} style={{ padding: 0 }}>
+                <TitrateForm id={p.id} current={p.doseMg} compound={p.compound} onDone={() => setTitrating(null)} />
+              </td></tr>
+            )}
+          </Fragment>
+        ))}
+        {rows.length === 0 && <tr><td colSpan={isDesktop ? 5 : 4}>{emptyMsg}</td></tr>}
+      </tbody>
+    </table>
+  );
 
   return (
     <div className="page">
@@ -24,32 +55,30 @@ export default function Pharmacology() {
       >
         <div className="block">
           <ProtocolAddForm />
-          <p className="eyebrow">Continuous protocol</p>
-          <table>
-            <tbody>
-              <tr><th>Compound</th><th>Daily dose</th><th>Route</th><th>Since</th>{isDesktop && <th />}</tr>
-              {protocols.map((p) => (
-                <Fragment key={p.id}>
-                  <tr>
-                    <td>{p.compound}</td><td>{p.dose}</td><td>{p.route}</td><td>{p.since}</td>
-                    {isDesktop && (
-                      <td className="rowact">
-                        <button className="rowbtn" onClick={() => setTitrating(titrating === p.id ? null : p.id)}>titrate</button>
-                        <button className="rowbtn" onClick={() => endProtocol(p.id)}>end</button>
-                        <button className="rowbtn del" onClick={() => deleteProtocol(p.id)}>del</button>
-                      </td>
-                    )}
-                  </tr>
-                  {titrating === p.id && (
-                    <tr><td colSpan={5} style={{ padding: 0 }}>
-                      <TitrateForm id={p.id} current={p.doseMg} compound={p.compound} onDone={() => setTitrating(null)} />
-                    </td></tr>
-                  )}
-                </Fragment>
-              ))}
-              {protocols.length === 0 && <tr><td colSpan={isDesktop ? 5 : 4}>No active protocol. Add a compound to begin.</td></tr>}
-            </tbody>
-          </table>
+          <p className="eyebrow">Injectable protocols</p>
+          {protocolTable(injectables, 'No active injectable. Add a compound to begin.')}
+        </div>
+
+        <div className="block">
+          <p className="eyebrow">Orals &amp; supplements</p>
+          <p className="synced-note">Cialis, Accutane, AIs, SERMs, orals — run as a daily protocol (above) or log one-off doses below.</p>
+          {protocolTable(orals, 'No oral/supplement protocol. Add one above (route Oral), or log a one-off dose below.')}
+          <div style={{ marginTop: 12 }}>
+            <AdminLogForm />
+            {administrations.length > 0 && (
+              <table style={{ marginTop: 8 }}>
+                <tbody>
+                  <tr><th>Date</th><th>Compound</th><th>Dose</th><th>Route</th>{isDesktop && <th />}</tr>
+                  {administrations.map((a) => (
+                    <tr key={a.id}>
+                      <td>{a.date}</td><td>{a.compound}</td><td>{a.dose}</td><td>{a.route}</td>
+                      {isDesktop && <td className="rowact"><button className="rowbtn del" onClick={() => deleteAdministration(a.id)}>del</button></td>}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
         </div>
 
         <div className="block">
