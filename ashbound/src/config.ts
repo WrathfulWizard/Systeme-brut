@@ -32,6 +32,16 @@ export const PLAYER = {
   attackDamage: 34,
   attackReach: 22,
   attackArc: Math.PI * 0.9, // swing covers ~160°
+  // heavy (strong) attack — slower, more committed, hits harder + wider
+  heavyCost: 38,
+  heavyWindup: 0.26,
+  heavyActive: 0.14,
+  heavyRecovery: 0.34,
+  heavyDamage: 68,
+  heavyReach: 27,
+  heavyArc: Math.PI * 1.1,
+  heavyKnock: 150,
+  heavyLunge: 110,
   staminaRegen: 38, // per second
   staminaRegenDelay: 0.45, // s after spending before regen resumes
   knockback: 90,

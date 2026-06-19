@@ -114,8 +114,12 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
         this.drinkEstus(body);
         return;
       }
+      if (input.heavyPressed && this.stamina >= PLAYER.heavyCost) {
+        this.beginAttack(true);
+        return;
+      }
       if (input.attackPressed && this.stamina >= PLAYER.attackCost) {
-        this.beginAttack();
+        this.beginAttack(false);
         return;
       }
       if (input.rollPressed && this.stamina >= PLAYER.rollCost) {
@@ -175,23 +179,25 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     }
   }
 
-  private beginAttack(): void {
-    this.stamina -= PLAYER.attackCost;
+  private heavy = false;
+  private busyLungeX = 0;
+  private busyLungeY = 0;
+  private beginAttack(heavy: boolean): void {
+    this.heavy = heavy;
+    this.stamina -= heavy ? PLAYER.heavyCost : PLAYER.attackCost;
     this.regenDelayT = PLAYER.staminaRegenDelay;
     this.mode = "attack";
     this.attackPhase = "windup";
-    this.attackT = PLAYER.attackWindup;
+    this.attackT = heavy ? PLAYER.heavyWindup : PLAYER.attackWindup;
     this.attackAngle = Math.atan2(this.faceY, this.faceX);
     this.hitThisSwing.clear();
     (this.body as Phaser.Physics.Arcade.Body).setVelocity(0, 0);
     this.applyAnim(false);
     sfx.swing();
-    // small commitment lunge in the swing direction
-    this.busyLungeX = Math.cos(this.attackAngle) * 60;
-    this.busyLungeY = Math.sin(this.attackAngle) * 60;
+    const lunge = heavy ? PLAYER.heavyLunge : 60;
+    this.busyLungeX = Math.cos(this.attackAngle) * lunge;
+    this.busyLungeY = Math.sin(this.attackAngle) * lunge;
   }
-  private busyLungeX = 0;
-  private busyLungeY = 0;
 
   private updateAttack(dt: number, body: Phaser.Physics.Arcade.Body): void {
     body.velocity.scale(0.7);
@@ -203,13 +209,13 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     // advance phase
     if (this.attackPhase === "windup") {
       this.attackPhase = "active";
-      this.attackT = PLAYER.attackActive;
-      this.world.spawnSlash(this.x, this.y, this.attackAngle);
+      this.attackT = this.heavy ? PLAYER.heavyActive : PLAYER.attackActive;
+      this.world.spawnSlash(this.x, this.y, this.attackAngle, this.heavy ? 1.6 : 1);
       body.setVelocity(this.busyLungeX, this.busyLungeY);
       this.resolveSwing();
     } else if (this.attackPhase === "active") {
       this.attackPhase = "recovery";
-      this.attackT = PLAYER.attackRecovery;
+      this.attackT = this.heavy ? PLAYER.heavyRecovery : PLAYER.attackRecovery;
     } else {
       this.mode = "free";
     }
@@ -237,22 +243,23 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   }
 
   private resolveSwing(): void {
-    const half = PLAYER.attackArc / 2;
-    const reach = PLAYER.attackReach;
+    const half = (this.heavy ? PLAYER.heavyArc : PLAYER.attackArc) / 2;
+    const reach = this.heavy ? PLAYER.heavyReach : PLAYER.attackReach;
+    const dmg = this.heavy ? PLAYER.heavyDamage : PLAYER.attackDamage;
     for (const enemy of this.world.meleeTargets()) {
       if (!enemy.active || this.hitThisSwing.has(enemy)) continue;
       const dx = enemy.x - this.x;
       const dy = enemy.y - this.y;
       const dist = Math.hypot(dx, dy);
       if (dist > reach + 10) continue;
-      let da = Math.abs(Phaser.Math.Angle.Wrap(Math.atan2(dy, dx) - this.attackAngle));
+      const da = Math.abs(Phaser.Math.Angle.Wrap(Math.atan2(dy, dx) - this.attackAngle));
       if (da <= half) {
         this.hitThisSwing.add(enemy);
-        enemy.takeDamage(PLAYER.attackDamage, this.x, this.y);
-        this.world.hitStop(60);
-        this.world.shake(0.004, 80);
-        this.world.spark(enemy.x, enemy.y, 0xffe0a0);
-        this.world.popNumber(enemy.x, enemy.y, PLAYER.attackDamage, 0xffe6b0);
+        enemy.takeDamage(dmg, this.x, this.y);
+        this.world.hitStop(this.heavy ? 110 : 60);
+        this.world.shake(this.heavy ? 0.008 : 0.004, this.heavy ? 130 : 80);
+        this.world.spark(enemy.x, enemy.y, this.heavy ? 0xff9a5a : 0xffe0a0);
+        this.world.popNumber(enemy.x, enemy.y, dmg, this.heavy ? 0xff9a5a : 0xffe6b0);
         sfx.hit();
       }
     }

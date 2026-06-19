@@ -57,7 +57,7 @@ function runSmoke(win: BrowserWindow): void {
     // Drive synthetic input so combat / menu / interaction paths run too.
     const sim = `
       (function(){
-        var K={ENTER:13,J:74,SPACE:32,Q:81,TAB:9,E:69,W:87,S:83,D:68,A:65};
+        var K={ENTER:13,ESC:27,P:80,J:74,SPACE:32,Q:81,TAB:9,E:69,W:87,S:83,D:68,A:65};
         function press(code){
           var kc=K[code];
           ['keydown','keyup'].forEach(function(t){
@@ -66,9 +66,11 @@ function runSmoke(win: BrowserWindow): void {
         }
         var shot = ${process.env.ASHBOUND_SHOT ? "true" : "false"};
         var seq = shot
-          ? ['ENTER','D','D','D','D','J','D','D','J','SPACE','D','J','TAB']
-          : ['ENTER','J','SPACE','Q','TAB','J','E','S','W','E','J'];
-        seq.forEach(function(c,i){ setTimeout(function(){ try{press(c);}catch(e){} }, 700+i*170); });
+          ? ['D','D','D','J','D','J','SPACE','TAB','P']
+          : ['J','SPACE','Q','TAB','J','E','S','W','E','J'];
+        // ENTER leaves the title; wait for the world to build before gameplay input
+        setTimeout(function(){ try{press('ENTER');}catch(e){} }, 700);
+        seq.forEach(function(c,i){ setTimeout(function(){ try{press(c);}catch(e){} }, 3000+i*220); });
       })();
     `;
     win.webContents.executeJavaScript(sim).catch(() => {});
@@ -101,7 +103,7 @@ function runSmoke(win: BrowserWindow): void {
         console.error("[smoke] eval failed:", err);
         finish(5);
       }
-    }, 4000);
+    }, 6500);
   });
 }
 

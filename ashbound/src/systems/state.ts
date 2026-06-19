@@ -29,6 +29,14 @@ export interface PlayerState {
   menuOptions: string[];
   menuIndex: number;
   prompt: string; // contextual "[E] rest" hint
+  // pause
+  paused: boolean;
+  pauseIndex: number;
+  // overlays (drawn by the unzoomed HUD scene)
+  ambientColor: number;
+  ambientAlpha: number;
+  mmX: number; // player position on the minimap, normalised 0..1
+  mmY: number;
 }
 
 export const playerState: PlayerState = {
@@ -56,7 +64,22 @@ export const playerState: PlayerState = {
   menuOptions: [],
   menuIndex: 0,
   prompt: "",
+  paused: false,
+  pauseIndex: 0,
+  ambientColor: 0x000000,
+  ambientAlpha: 0,
+  mmX: 0,
+  mmY: 0,
 };
+
+export const PAUSE_OPTIONS = ["Resume", "Return to title"];
+
+export interface MinimapData {
+  cols: number;
+  rows: number;
+  bonfires: { nx: number; ny: number }[];
+  boss: { nx: number; ny: number };
+}
 
 export function zoneCard(now: number, title: string, sub: string, ms = 3200): void {
   playerState.zoneTitle = title;

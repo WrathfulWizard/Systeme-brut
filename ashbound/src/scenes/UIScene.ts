@@ -1,9 +1,19 @@
 import Phaser from "phaser";
 import { COLORS } from "../config";
-import { playerState } from "../systems/state";
+import { playerState, PAUSE_OPTIONS, type MinimapData } from "../systems/state";
 
-// Screen-space HUD at native resolution. Reads playerState each frame.
+// Screen-space HUD at native resolution. Reads playerState each frame. Also
+// owns the colour-grade, vignette and minimap — overlays that must NOT be
+// scaled by the world camera's zoom (the game runs at zoom 3).
 export class UIScene extends Phaser.Scene {
+  private grade!: Phaser.GameObjects.Rectangle;
+  private vignette!: Phaser.GameObjects.Image;
+  private mmImage?: Phaser.GameObjects.Image;
+  private mmFrame?: Phaser.GameObjects.Rectangle;
+  private mmBack?: Phaser.GameObjects.Rectangle;
+  private mmMarkers: Phaser.GameObjects.Rectangle[] = [];
+  private mmDot?: Phaser.GameObjects.Rectangle;
+  private mm = { x: 0, y: 0, w: 156, h: 117 };
   private g!: Phaser.GameObjects.Graphics;
   private stats!: Phaser.GameObjects.Text;
   private runes!: Phaser.GameObjects.Text;
@@ -13,6 +23,7 @@ export class UIScene extends Phaser.Scene {
   private bossName!: Phaser.GameObjects.Text;
   private prompt!: Phaser.GameObjects.Text;
   private menu!: Phaser.GameObjects.Text;
+  private pauseText!: Phaser.GameObjects.Text;
   private hint!: Phaser.GameObjects.Text;
 
   constructor() {
@@ -20,6 +31,18 @@ export class UIScene extends Phaser.Scene {
   }
 
   create(): void {
+    // colour-grade + vignette sit over the world (this scene renders above the
+    // game scene) but below every HUD element.
+    this.grade = this.add
+      .rectangle(0, 0, this.scale.width, this.scale.height, 0x000000, 0)
+      .setOrigin(0)
+      .setDepth(-10);
+    this.vignette = this.add
+      .image(0, 0, "fx_vignette")
+      .setOrigin(0)
+      .setDepth(-9)
+      .setDisplaySize(this.scale.width, this.scale.height);
+
     this.g = this.add.graphics().setDepth(10);
     const mono = "monospace";
 
@@ -60,8 +83,20 @@ export class UIScene extends Phaser.Scene {
       .setOrigin(0.5)
       .setDepth(15);
 
+    this.pauseText = this.add
+      .text(0, 0, "", {
+        fontFamily: mono,
+        fontSize: "22px",
+        color: hex(COLORS.text),
+        align: "center",
+        lineSpacing: 10,
+      })
+      .setOrigin(0.5)
+      .setDepth(20)
+      .setVisible(false);
+
     this.hint = this.add
-      .text(0, 0, "WASD move · J/LMB attack · SPACE dodge · TAB lock · Q estus · E ember", {
+      .text(0, 0, "WASD move · J attack · K heavy · SPACE dodge · TAB lock · Q estus · E ember · ESC pause", {
         fontFamily: mono,
         fontSize: "11px",
         color: hex(COLORS.textDim),
@@ -81,13 +116,59 @@ export class UIScene extends Phaser.Scene {
     this.bossName.setPosition(w / 2, h - 54);
     this.prompt.setPosition(w / 2, h - 86);
     this.menu.setPosition(w / 2, h / 2);
+    this.pauseText.setPosition(w / 2, h / 2);
     this.hint.setPosition(16, h - 22);
+    this.grade.setSize(w, h);
+    this.vignette.setDisplaySize(w, h);
+    this.mm.x = w - this.mm.w - 14;
+    this.mm.y = h - this.mm.h - 14;
+    this.positionMinimap();
+  }
+
+  // Lazily assemble the minimap once GameScene has baked its texture + data.
+  private tryBuildMinimap(): void {
+    if (this.mmImage || !this.textures.exists("minimap")) return;
+    const data = this.registry.get("mmData") as MinimapData | undefined;
+    if (!data) return;
+    const { x, y, w, h } = this.mm;
+    this.mmBack = this.add.rectangle(x - 3, y - 3, w + 6, h + 6, 0x05040a, 0.85).setOrigin(0).setDepth(30);
+    this.mmImage = this.add.image(x, y, "minimap").setOrigin(0).setDepth(31).setDisplaySize(w, h);
+    this.mmFrame = this.add.rectangle(x - 3, y - 3, w + 6, h + 6).setOrigin(0).setStrokeStyle(1, 0x8a8298, 0.9).setDepth(33);
+    for (const f of data.bonfires) {
+      this.mmMarkers.push(this.add.rectangle(x + f.nx * w, y + f.ny * h, 3, 3, 0xffb050).setDepth(32));
+    }
+    this.mmMarkers.push(this.add.rectangle(x + data.boss.nx * w, y + data.boss.ny * h, 4, 4, 0xb04030).setDepth(32));
+    this.mmDot = this.add.rectangle(0, 0, 4, 4, 0xffffff).setStrokeStyle(1, 0x000000, 0.8).setDepth(34);
+    this.positionMinimap();
+  }
+
+  private positionMinimap(): void {
+    if (!this.mmImage) return;
+    const data = this.registry.get("mmData") as MinimapData | undefined;
+    const { x, y, w, h } = this.mm;
+    this.mmBack!.setPosition(x - 3, y - 3);
+    this.mmImage.setPosition(x, y);
+    this.mmFrame!.setPosition(x - 3, y - 3);
+    if (data) {
+      const all = [...data.bonfires, data.boss];
+      this.mmMarkers.forEach((m, i) => m.setPosition(x + all[i].nx * w, y + all[i].ny * h));
+    }
   }
 
   update(): void {
     const g = this.g;
     g.clear();
     const now = this.time.now;
+
+    // colour grade + minimap
+    this.grade.setFillStyle(playerState.ambientColor, playerState.ambientAlpha);
+    this.tryBuildMinimap();
+    if (this.mmDot) {
+      this.mmDot.setPosition(
+        this.mm.x + playerState.mmX * this.mm.w,
+        this.mm.y + playerState.mmY * this.mm.h,
+      );
+    }
 
     // bars
     const x = 16;
@@ -152,6 +233,14 @@ export class UIScene extends Phaser.Scene {
         .join("\n");
       this.menu.setText(lines).setVisible(true);
     } else this.menu.setVisible(false);
+
+    // pause overlay
+    if (playerState.paused) {
+      g.fillStyle(0x05040a, 0.7);
+      g.fillRect(0, 0, this.scale.width, this.scale.height);
+      const opts = PAUSE_OPTIONS.map((o, i) => (i === playerState.pauseIndex ? `›  ${o}` : `    ${o}`)).join("\n");
+      this.pauseText.setText(`— PAUSED —\n\n${opts}`).setVisible(true);
+    } else this.pauseText.setVisible(false);
   }
 }
 

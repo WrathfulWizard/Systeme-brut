@@ -4,10 +4,10 @@ import { Player } from "../entities/Player";
 import { Enemy } from "../entities/Enemy";
 import { Boss } from "../entities/Boss";
 import { GameInput } from "../systems/input";
-import { playerState, flash, zoneCard } from "../systems/state";
+import { playerState, flash, zoneCard, PAUSE_OPTIONS, type MinimapData } from "../systems/state";
 import { generateWorld, type WorldData, type Bonfire } from "../world/worldgen";
 import type { TileIndex } from "../art/gen";
-import type { Biome } from "../world/biomes";
+import { BIOMES, type Biome } from "../world/biomes";
 import { initAudio, sfx } from "../systems/audio";
 
 export interface Damageable {
@@ -32,8 +32,6 @@ export class GameScene extends Phaser.Scene {
   private obstacles!: Phaser.Physics.Arcade.StaticGroup;
   private boss!: Boss;
   private reticle!: Phaser.GameObjects.Arc;
-  private ambient!: Phaser.GameObjects.Rectangle;
-  private vignette!: Phaser.GameObjects.Image;
   private ashEmitter!: Phaser.GameObjects.Particles.ParticleEmitter;
   private bloodstain: Phaser.GameObjects.Image | null = null;
   private bloodPos: { x: number; y: number } | null = null;
@@ -44,13 +42,15 @@ export class GameScene extends Phaser.Scene {
   private checkpoint!: Bonfire;
   private nearBonfire: Bonfire | null = null;
   private bossArenaCenter = { x: 0, y: 0 };
+  private tiles!: TileIndex;
 
   constructor() {
     super("Game");
   }
 
   create(): void {
-    const tiles = this.registry.get("tiles") as TileIndex;
+    this.tiles = this.registry.get("tiles") as TileIndex;
+    const tiles = this.tiles;
     this.world = generateWorld(tiles);
     const w = this.world;
     const px = w.cols * w.tileSize;
@@ -98,23 +98,8 @@ export class GameScene extends Phaser.Scene {
       .setVisible(false)
       .setDepth(50000);
 
-    // ambient colour-grade (screen space, under HUD)
-    this.ambient = this.add
-      .rectangle(0, 0, this.scale.width, this.scale.height, 0x000000, 0)
-      .setOrigin(0)
-      .setScrollFactor(0)
-      .setDepth(40000);
-    // cinematic vignette (screen space, under the colour grade)
-    this.vignette = this.add
-      .image(0, 0, "fx_vignette")
-      .setOrigin(0)
-      .setScrollFactor(0)
-      .setDepth(39000)
-      .setDisplaySize(this.scale.width, this.scale.height);
-    this.scale.on("resize", (s: Phaser.Structs.Size) => {
-      this.ambient.setSize(s.width, s.height);
-      this.vignette.setDisplaySize(s.width, s.height);
-    });
+    // NB: colour-grade, vignette and minimap are screen-space and live in the
+    // unzoomed UIScene — putting them here would be scaled by the camera zoom.
 
     // drifting ash that follows the camera
     this.ashEmitter = this.add.particles(0, 0, "fx_ash", {
@@ -143,9 +128,70 @@ export class GameScene extends Phaser.Scene {
 
     this.loadGame();
     this.applyBiome(this.world.biomeAt(this.player.x, this.player.y), true);
+    this.buildMinimap();
+
+    // reset transient run state on (re)entry
+    playerState.paused = false;
+    playerState.menuOpen = false;
+    this.physics.world.resume();
 
     const w2 = window as unknown as { __ashbound?: { booted: boolean } };
     if (w2.__ashbound) w2.__ashbound.booted = true;
+  }
+
+  // ── minimap ──────────────────────────────────────────────────────────────
+  // Bakes the 'minimap' texture (global) and publishes marker data; the HUD
+  // scene draws it at native scale.
+  private buildMinimap(): void {
+    const w = this.world;
+    const key = "minimap";
+    if (this.textures.exists(key)) this.textures.remove(key);
+    const tex = this.textures.createCanvas(key, w.cols, w.rows);
+    if (!tex) return;
+    const ctx = tex.context;
+    for (let ty = 0; ty < w.rows; ty++) {
+      for (let tx = 0; tx < w.cols; tx++) {
+        const b = BIOMES[w.biomeGrid[ty * w.cols + tx]];
+        const bi = this.tiles.biome[b.id];
+        const idx = w.data[ty][tx];
+        let col: number;
+        if (idx === this.tiles.abyss) col = 0x050409;
+        else if (idx === bi.water) col = b.lava ? b.accent : mixInt(b.water, 0x4a7a96, 0.5);
+        else if (idx === bi.cliff) col = shadeInt(b.cliff, 0.28);
+        else col = shadeInt(mixInt(b.ground[0], b.accent, 0.6), 0.22);
+        ctx.fillStyle = "#" + (col >>> 0).toString(16).padStart(6, "0").slice(-6);
+        ctx.fillRect(tx, ty, 1, 1);
+      }
+    }
+    tex.refresh();
+
+    const wpx = w.cols * w.tileSize;
+    const hpx = w.rows * w.tileSize;
+    const data: MinimapData = {
+      cols: w.cols,
+      rows: w.rows,
+      bonfires: w.bonfires.map((f) => ({ nx: f.x / wpx, ny: f.y / hpx })),
+      boss: { nx: w.boss.x / wpx, ny: w.boss.y / hpx },
+    };
+    this.registry.set("mmData", data);
+  }
+
+  private togglePause(): void {
+    playerState.paused = !playerState.paused;
+    playerState.pauseIndex = 0;
+    sfx.uiSelect();
+    if (playerState.paused) this.physics.world.pause();
+    else this.physics.world.resume();
+  }
+  private pauseConfirm(): void {
+    if (playerState.pauseIndex === 0) {
+      this.togglePause();
+    } else {
+      playerState.paused = false;
+      this.physics.world.resume();
+      this.scene.stop("UI");
+      this.scene.start("Title");
+    }
   }
 
   // ── world construction ──────────────────────────────────────────────────
@@ -298,12 +344,13 @@ export class GameScene extends Phaser.Scene {
     this.lockTarget = best;
   }
 
-  spawnSlash(x: number, y: number, angle: number): void {
+  spawnSlash(x: number, y: number, angle: number, scale = 1): void {
     const off = 14;
     const s = this.add.image(x + Math.cos(angle) * off, y + Math.sin(angle) * off, "slash");
-    s.setRotation(angle).setScale(0.7).setAlpha(0.95);
+    s.setRotation(angle).setScale(0.7 * scale).setAlpha(0.95);
+    if (scale > 1.2) s.setTint(0xff9a5a);
     s.setDepth((this.player.body as Phaser.Physics.Arcade.Body).bottom + 1);
-    this.tweens.add({ targets: s, scale: 1.15, alpha: 0, duration: 150, onComplete: () => s.destroy() });
+    this.tweens.add({ targets: s, scale: 1.15 * scale, alpha: 0, duration: 160, onComplete: () => s.destroy() });
   }
 
   hitStop(ms: number): void {
@@ -428,12 +475,10 @@ export class GameScene extends Phaser.Scene {
   }
 
   // ── biome grade ─────────────────────────────────────────────────────────
-  private applyBiome(b: Biome, instant: boolean): void {
+  private applyBiome(b: Biome, _instant: boolean): void {
     playerState.zone = b.name;
-    const grade = Phaser.Display.Color.IntegerToColor(b.ambient);
-    this.ambient.setFillStyle(b.ambient, b.ambientAlpha);
-    void grade;
-    void instant;
+    playerState.ambientColor = b.ambient;
+    playerState.ambientAlpha = b.ambientAlpha;
   }
 
   // ── save / load ─────────────────────────────────────────────────────────
@@ -477,12 +522,32 @@ export class GameScene extends Phaser.Scene {
 
   // ── main loop ─────────────────────────────────────────────────────────────
   update(_time: number, delta: number): void {
+    const input = this.input2.sample();
+
+    // pause (works even mid hit-stop)
+    if (input.pausePressed && !playerState.menuOpen) this.togglePause();
+    if (playerState.paused) {
+      const n = PAUSE_OPTIONS.length;
+      if (input.upPressed) {
+        playerState.pauseIndex = (playerState.pauseIndex + n - 1) % n;
+        sfx.uiMove();
+      }
+      if (input.downPressed) {
+        playerState.pauseIndex = (playerState.pauseIndex + 1) % n;
+        sfx.uiMove();
+      }
+      if (input.interactPressed) {
+        sfx.uiSelect();
+        this.pauseConfirm();
+      }
+      return;
+    }
+
     if (this.hitStopT > 0) {
       this.hitStopT -= delta;
       return;
     }
     const dt = Math.min(delta / 1000, 0.05);
-    const input = this.input2.sample();
 
     if (playerState.menuOpen) {
       if (input.upPressed) {
@@ -529,6 +594,9 @@ export class GameScene extends Phaser.Scene {
       this.reticle.setVisible(true).setPosition(this.lockTarget.x, this.lockTarget.y - 10);
     } else this.reticle.setVisible(false);
 
+    playerState.mmX = this.player.x / (this.world.cols * this.world.tileSize);
+    playerState.mmY = this.player.y / (this.world.rows * this.world.tileSize);
+
     // zone transitions
     const biome = this.world.biomeAt(this.player.x, this.player.y);
     if (biome.id !== this.currentBiome) {
@@ -567,4 +635,15 @@ export class GameScene extends Phaser.Scene {
     playerState.prompt = this.nearBonfire ? "[E] tend the ember" : "";
     if (this.nearBonfire && input.interactPressed) this.openRest(this.nearBonfire);
   }
+}
+
+function mixInt(a: number, b: number, t: number): number {
+  const ar = (a >> 16) & 0xff, ag = (a >> 8) & 0xff, ab = a & 0xff;
+  const br = (b >> 16) & 0xff, bg = (b >> 8) & 0xff, bb = b & 0xff;
+  return ((Math.round(ar + (br - ar) * t) << 16) |
+    (Math.round(ag + (bg - ag) * t) << 8) |
+    Math.round(ab + (bb - ab) * t));
+}
+function shadeInt(c: number, amt: number): number {
+  return mixInt(c, amt < 0 ? 0x000000 : 0xffffff, Math.abs(amt));
 }

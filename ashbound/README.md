@@ -25,11 +25,13 @@ See [`LORE.md`](LORE.md) for the full world bible.
 | Action              | Keys                     |
 | ------------------- | ------------------------ |
 | Move                | `WASD` / arrow keys      |
-| Attack              | `J` or **left mouse**    |
+| Attack (light)      | `J` or **left mouse**    |
+| Attack (heavy)      | `K`                      |
 | Dodge roll          | `SPACE` (i-frames)       |
 | Lock on / off       | `TAB` or **right mouse** |
 | Drink estus (heal)  | `Q`                      |
 | Tend ember / select | `E`                      |
+| Pause               | `ESC` / `P`              |
 | Menu navigate       | `W` / `S`                |
 
 ## What's in the build
@@ -41,7 +43,11 @@ region has its own palette, ground art, props, ambient colour-grade and enemy,
 announced by an **Elden-Ring-style title card** as you cross into it.
 
 - **Soulslike combat** — stamina-gated, *committed* attacks (wind-up → active →
-  recovery); dodge roll with i-frames; lock-on strafe combat.
+  recovery); a **light and a heavy attack**; dodge roll with i-frames; lock-on
+  strafe combat.
+- **Open-world minimap** — a colour-coded map of all five regions with bonfire
+  and boss markers and a live player dot.
+- **Pause menu** — resume or return to the title.
 - **Three enemy archetypes** — the patient Hollow, the swarming Mireling, the
   heavy Emberknight — each with telegraphed, punishable strikes.
 - **A boss** — the **Cinder Lord**, sealed behind a fog gate, with telegraphed

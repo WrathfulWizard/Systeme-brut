@@ -1,5 +1,5 @@
 import Phaser from "phaser";
-import { bakeFrame, bakeFrames, makeAnim } from "../art/pixelart";
+import { bakeFrame, bakeFramesStyled, makeAnim } from "../art/pixelart";
 import { PAL, PLAYER_FRAMES, HOLLOW_FRAMES, BEAST_FRAMES, SLASH, EMBER_A, EMBER_B } from "../art/sprites";
 import { generateTiles, generateProps, generateBoss, T } from "../art/gen";
 import { BIOMES } from "../world/biomes";
@@ -12,14 +12,14 @@ export class BootScene extends Phaser.Scene {
   }
 
   create(): void {
-    // Characters.
-    bakeFrames(this, "player_front", PLAYER_FRAMES.front, PAL);
-    bakeFrames(this, "player_back", PLAYER_FRAMES.back, PAL);
-    bakeFrames(this, "player_side", PLAYER_FRAMES.side, PAL);
-    bakeFrames(this, "hollow_front", HOLLOW_FRAMES.front, PAL);
-    bakeFrames(this, "hollow_side", HOLLOW_FRAMES.side, PAL);
-    bakeFrames(this, "beast_front", BEAST_FRAMES.front, PAL);
-    bakeFrames(this, "beast_side", BEAST_FRAMES.side, PAL);
+    // Characters — outlined + rim-lit for a crisp, intentional silhouette.
+    bakeFramesStyled(this, "player_front", PLAYER_FRAMES.front, PAL, 0x080610, 0x6a5d7e);
+    bakeFramesStyled(this, "player_back", PLAYER_FRAMES.back, PAL, 0x080610, 0x6a5d7e);
+    bakeFramesStyled(this, "player_side", PLAYER_FRAMES.side, PAL, 0x080610, 0x6a5d7e);
+    bakeFramesStyled(this, "hollow_front", HOLLOW_FRAMES.front, PAL, 0x080610, 0x4a5a45);
+    bakeFramesStyled(this, "hollow_side", HOLLOW_FRAMES.side, PAL, 0x080610, 0x4a5a45);
+    bakeFramesStyled(this, "beast_front", BEAST_FRAMES.front, PAL, 0x080610, 0x4a5a45);
+    bakeFramesStyled(this, "beast_side", BEAST_FRAMES.side, PAL, 0x080610, 0x4a5a45);
 
     makeAnim(this, "player-front-walk", "player_front", 3, 7);
     makeAnim(this, "player-back-walk", "player_back", 3, 7);

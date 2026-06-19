@@ -8,6 +8,8 @@ export interface InputState {
   lockPressed: boolean; // edge
   interactPressed: boolean; // edge
   healPressed: boolean; // edge
+  heavyPressed: boolean; // edge (strong attack)
+  pausePressed: boolean; // edge
   upPressed: boolean; // edge (menu)
   downPressed: boolean; // edge (menu)
 }
@@ -22,13 +24,15 @@ export class GameInput {
   private latchLock = false;
   private latchInteract = false;
   private latchHeal = false;
+  private latchHeavy = false;
+  private latchPause = false;
   private latchUp = false;
   private latchDown = false;
 
   constructor(scene: Phaser.Scene) {
     const kb = scene.input.keyboard!;
     this.keys = kb.addKeys(
-      "W,A,S,D,UP,DOWN,LEFT,RIGHT,SPACE,SHIFT,J,K,TAB,E,Q,ENTER",
+      "W,A,S,D,UP,DOWN,LEFT,RIGHT,SPACE,SHIFT,J,K,TAB,E,Q,P,ESC,ENTER",
     ) as Record<string, Phaser.Input.Keyboard.Key>;
 
     // Stop TAB from moving focus / browser default.
@@ -38,6 +42,9 @@ export class GameInput {
     kb.on("keydown-TAB", () => (this.latchLock = true));
     kb.on("keydown-E", () => (this.latchInteract = true));
     kb.on("keydown-Q", () => (this.latchHeal = true));
+    kb.on("keydown-K", () => (this.latchHeavy = true));
+    kb.on("keydown-ESC", () => (this.latchPause = true));
+    kb.on("keydown-P", () => (this.latchPause = true));
     kb.on("keydown-W", () => (this.latchUp = true));
     kb.on("keydown-UP", () => (this.latchUp = true));
     kb.on("keydown-S", () => (this.latchDown = true));
@@ -69,11 +76,14 @@ export class GameInput {
       lockPressed: this.latchLock,
       interactPressed: this.latchInteract,
       healPressed: this.latchHeal,
+      heavyPressed: this.latchHeavy,
+      pausePressed: this.latchPause,
       upPressed: this.latchUp,
       downPressed: this.latchDown,
     };
     this.latchRoll = this.latchAttack = this.latchLock = this.latchInteract = false;
-    this.latchHeal = this.latchUp = this.latchDown = false;
+    this.latchHeal = this.latchHeavy = this.latchPause = false;
+    this.latchUp = this.latchDown = false;
     return out;
   }
 }
