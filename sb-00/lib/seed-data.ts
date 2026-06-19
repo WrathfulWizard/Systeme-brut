@@ -41,6 +41,18 @@ export const seedSnapshot: Snapshot = {
       { week: '2026-23', volume: 45100 }, { week: '2026-24', volume: 46900 },
     ],
   },
+  progress: (() => {
+    const rows = [
+      { metric: 'Bodyweight', value: '89.4 kg', prev: '90.6 kg', delta: '-1.2 kg', dir: 'down' as const, upGood: true },
+      { metric: 'Body fat', value: '12.5 %', prev: '13.6 %', delta: '-1.1 %', dir: 'down' as const, upGood: false },
+      { metric: 'Waist', value: '81.0 cm', prev: '82.5 cm', delta: '-1.5 cm', dir: 'down' as const, upGood: false },
+      { metric: 'Tonnage', value: '46900 kg', prev: '45100 kg', delta: '+1800 kg', dir: 'up' as const, upGood: true },
+      { metric: 'Protein', value: '212 g/d', prev: '205 g/d', delta: '+7 g/d', dir: 'up' as const, upGood: true },
+      { metric: 'VO₂max', value: '52.4', prev: '51.1', delta: '+1.3', dir: 'up' as const, upGood: true },
+      { metric: 'Resting HR', value: '48 bpm', prev: '50 bpm', delta: '-2 bpm', dir: 'down' as const, upGood: false },
+    ];
+    return { W: rows, M: rows, '3M': rows, '6M': rows, Y: rows };
+  })(),
   cardioGoal: { metric: 'distance_km', target: 10, longest: 7.2, unit: 'km' },
   cardioProgression: [
     { date: '06.06', distance: 5.0 }, { date: '06.10', distance: 5.5 },

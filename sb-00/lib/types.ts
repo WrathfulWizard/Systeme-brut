@@ -55,6 +55,9 @@ export interface SerumCompound {
   discontinued: boolean;  // protocol ended but compound still clearing
   form: 'injectable' | 'oral';
 }
+/** Progress table: one period's metrics vs the immediately preceding period. */
+export type ProgressPeriod = 'W' | 'M' | '3M' | '6M' | 'Y';
+export interface ProgressRow { metric: string; value: string; prev: string; delta: string; dir: 'up' | 'down' | 'flat'; upGood: boolean; }
 export interface TotalRow { nutrient: string; today: string; target: string; delta: string; }
 export interface CaloriePoint { day: string; kcal: number; }
 /** Body composition: caliper body-fat % + tape measurements + weight. */
@@ -79,6 +82,8 @@ export interface Snapshot {
   tonnage: Bar[];
   /** deload cadence + weekly tonnage trend (training analysis) */
   trainingStatus: { weeksSinceDeload: number; deloadDue: boolean; weeklyTonnage: { week: string; volume: number }[] };
+  /** progress table: metrics per period (W/M/3M/6M/Y) vs the prior period */
+  progress: Record<ProgressPeriod, ProgressRow[]>;
   cardioGoal: { metric: string; target: number; longest: number; unit: string };
   cardioProgression: CardioPoint[];
   recentRuns: RunRow[];

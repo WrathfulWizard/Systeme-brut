@@ -261,6 +261,18 @@ console.log('✓ protocol + titration  (test 14→16, deca 7→10) · flags reso
   console.log('✓ set kinds + deload     (rp sum=20, widowmaker miss flagged, stretch 60s, training status)');
 }
 
+// --- progress table: W/M/3M/6M/Y, metrics vs the prior period ---
+{
+  const s = getSnapshot();
+  for (const p of ['W', 'M', '3M', '6M', 'Y']) {
+    assert.ok(Array.isArray(s.progress[p]) && s.progress[p].length > 8, `progress period ${p} has many metrics`);
+  }
+  const m = s.progress.Y.find((r) => r.metric === 'Tonnage');
+  assert.ok(m && typeof m.value === 'string' && ['up', 'down', 'flat'].includes(m.dir), 'progress rows carry value + direction');
+  assert.ok(s.progress.M.find((r) => r.metric === 'Bodyweight') && s.progress.M.find((r) => r.metric === 'VO₂max'), 'progress spans mass + cardio params');
+  console.log(`✓ progress table         (${s.progress.M.length} metrics × 5 periods, period-over-period deltas)`);
+}
+
 // --- substrate: body composition + expanded micros + weekly calories ---
 {
   mut.addBodyMetric({ measuredOn: '2026-06-17', weightKg: 89.4, bodyFatPct: 12.5, chestCm: 108, armCm: 41.5, thighCm: 62, waistCm: 81 });

@@ -7,12 +7,17 @@ import { LiftLogForm } from '@/components/LogForms';
 import { asciiBars } from '@/lib/ascii';
 import { useSb } from '../providers';
 import { useState } from 'react';
-import type { SetRow } from '@/lib/types';
+import type { SetRow, ProgressPeriod } from '@/lib/types';
+
+const PERIODS: ProgressPeriod[] = ['W', 'M', '3M', '6M', 'Y'];
+const PERIOD_LABEL: Record<ProgressPeriod, string> = { W: 'week', M: 'month', '3M': '3 months', '6M': '6 months', Y: 'year' };
 
 export default function Lifts() {
   const { snapshot, deleteSet, isDesktop } = useSb();
-  const { insights, recentSets, prLog, tonnage, trainingStatus } = snapshot;
+  const { insights, recentSets, prLog, tonnage, trainingStatus, progress } = snapshot;
   const [editing, setEditing] = useState<SetRow | null>(null);
+  const [period, setPeriod] = useState<ProgressPeriod>('M');
+  const progressRows = progress[period] ?? [];
   const tonnageRows = asciiBars(tonnage.map((t) => ({ label: t.lift, value: t.value, display: `${t.value}kg` })));
   const trainingInfo = insights.filter((i) => i.nodes.includes('training'));
   const flagCount = insights.filter((i) => i.severity === 'flag').length;
@@ -69,6 +74,31 @@ export default function Lifts() {
         <div className="block">
           <p className="eyebrow">Weekly tonnage — top lifts</p>
           <Ascii rows={tonnageRows} />
+        </div>
+
+        <div className="block">
+          <div className="logbar" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
+            <p className="eyebrow" style={{ margin: 0 }}>Progress — this {PERIOD_LABEL[period]} vs last</p>
+            <div className="win-toggle">
+              {PERIODS.map((p) => (
+                <button key={p} className={`wbtn${period === p ? ' on' : ''}`} onClick={() => setPeriod(p)}>{p}</button>
+              ))}
+            </div>
+          </div>
+          <table>
+            <tbody>
+              <tr><th>Metric</th><th>Now</th><th>Prev</th><th>Δ</th></tr>
+              {progressRows.map((r) => {
+                const good = r.dir === 'flat' ? '' : (r.dir === 'up') === r.upGood ? 'pos' : 'neg';
+                return (
+                  <tr key={r.metric}>
+                    <td>{r.metric}</td><td>{r.value}</td><td>{r.prev}</td>
+                    <td className={`delta ${good}`}>{r.dir === 'up' ? '▲' : r.dir === 'down' ? '▼' : ''} {r.delta}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
       </HubFrame>
     </div>

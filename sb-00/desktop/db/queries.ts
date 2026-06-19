@@ -1,6 +1,7 @@
 import { getDb } from './index';
 import { getCatalog } from './mutations';
 import { computeTrainingStatus } from './training';
+import { computeProgress } from './analytics';
 import { getStravaApp } from '../ingest/secrets';
 import { lookup } from '../pharma/compounds';
 import { protocolSerum, discreteSerum } from '../pharma/serum';
@@ -312,7 +313,7 @@ export function getSnapshot(): Snapshot {
   };
 
   return {
-    insights, recentSets, prLog, tonnage, trainingStatus: computeTrainingStatus(),
+    insights, recentSets, prLog, tonnage, trainingStatus: computeTrainingStatus(), progress: computeProgress(),
     cardioGoal, cardioProgression, recentRuns, cardioBySport, cardioWeekly, cardioMonthly, cardioHealth, gear,
     protocols, administrations, titration, labResults, serum7d, serumByCompound,
     dailyTotals, calories7d, caloriesByWeek, vitamins, minerals, essentialFats, bodyComposition, weightGoal,
