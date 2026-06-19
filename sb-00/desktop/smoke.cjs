@@ -33,6 +33,8 @@ const { applyHealthExport } = require('../dist-electron/desktop/ingest/appleHeal
 const r = applyHealthExport({
   data: { metrics: [
     { name: 'heart_rate', units: 'count/min', data: [{ date: '2026-06-18 08:00:00 +0000', Avg: 58 }] },
+    { name: 'resting_heart_rate', units: 'count/min', data: [{ date: '2026-06-18 08:00:00 +0000', Avg: 48 }] },
+    { name: 'vo2_max', units: 'mL/min·kg', data: [{ date: '2026-06-18 08:00:00 +0000', qty: 52.4 }] },
     { name: 'dietary_energy', units: 'kcal', data: [{ date: '2026-06-18 23:00:00 +0000', qty: 3010 }] },
     { name: 'protein', units: 'g', data: [{ date: '2026-06-18 23:00:00 +0000', qty: 221 }] },
     { name: 'sodium', units: 'mg', data: [{ date: '2026-06-18 23:00:00 +0000', qty: 4100 }] },
@@ -42,6 +44,7 @@ const r = applyHealthExport({
 assert.ok(r.wearables >= 1 && r.nutritionDays >= 1 && r.sleep >= 1 && r.micros >= 1, 'apple health applied');
 snap = getSnapshot();
 assert.ok(snap.calories7d.find((c) => c.kcal === 3010), 'new dietary day in calories7d');
+assert.ok(snap.cardioHealth.vo2max === 52.4 && snap.cardioHealth.restingHr === 48, 'VO2max + resting HR surfaced from Apple Health');
 console.log('✓ apple health ingest  ', JSON.stringify(r));
 
 // --- Cronometer CSV ---

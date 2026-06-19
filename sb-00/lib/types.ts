@@ -83,6 +83,15 @@ export interface Snapshot {
   cardioProgression: CardioPoint[];
   recentRuns: RunRow[];
   cardioBySport: { sport: Sport; count: number; distanceKm: number }[];
+  /** aggregated distance for the week/month/3mo/6mo/year cardio toggle */
+  cardioWeekly: CardioPoint[];
+  cardioMonthly: CardioPoint[];
+  /** cardiovascular health from Apple Health (VO2max, resting HR, HRV) */
+  cardioHealth: {
+    vo2max?: number; restingHr?: number; hrv?: number;
+    vo2Trend: { date: string; value: number }[];
+    rhrTrend: { date: string; value: number }[];
+  };
   /** running shoes / bikes + accumulated mileage */
   gear: GearRow[];
   protocols: ProtocolRow[];

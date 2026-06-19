@@ -18,6 +18,10 @@ export function buildContext(): string {
   L.push(`Goal: ${s.cardioGoal.target}${s.cardioGoal.unit}, longest ${s.cardioGoal.longest}${s.cardioGoal.unit}`);
   L.push('By sport: ' + s.cardioBySport.map((c) => `${c.sport} ×${c.count} (${c.distanceKm}km)`).join(', '));
   L.push('Recent: ' + s.recentRuns.slice(0, 5).map((r) => `${r.date} ${r.sport} ${r.distance} @ ${r.pace}`).join('; '));
+  const ch = s.cardioHealth;
+  if (ch.vo2max != null || ch.restingHr != null) {
+    L.push(`Cardio health: ${ch.vo2max != null ? `VO2max ${ch.vo2max}` : ''}${ch.restingHr != null ? `, resting HR ${ch.restingHr}` : ''}${ch.hrv != null ? `, HRV ${ch.hrv}ms` : ''} — track vs androgen load (hematocrit/BP) and aerobic progress.`);
+  }
 
   L.push('\n## PHARMACOLOGY');
   L.push('Active protocol: ' + (s.protocols.map((p) => `${p.compound} ${p.dose} ${p.route} (since ${p.since})`).join(', ') || 'none'));

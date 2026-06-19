@@ -57,6 +57,19 @@ export const seedSnapshot: Snapshot = {
     { sport: 'ride', count: 1, distanceKm: 32.0 },
     { sport: 'swim', count: 1, distanceKm: 1.5 },
   ],
+  cardioWeekly: [
+    { date: '05.18', distance: 18.2 }, { date: '05.25', distance: 21.0 },
+    { date: '06.01', distance: 22.6 }, { date: '06.08', distance: 24.7 },
+  ],
+  cardioMonthly: [
+    { date: '03.01', distance: 64 }, { date: '04.01', distance: 78 },
+    { date: '05.01', distance: 86 }, { date: '06.01', distance: 71 },
+  ],
+  cardioHealth: {
+    vo2max: 52.4, restingHr: 48, hrv: 78,
+    vo2Trend: [{ date: '04.01', value: 49.8 }, { date: '05.01', value: 51.1 }, { date: '06.01', value: 52.4 }],
+    rhrTrend: [{ date: '04.01', value: 52 }, { date: '05.01', value: 50 }, { date: '06.01', value: 48 }],
+  },
   gear: [
     { id: 1, name: 'Nike Vaporfly 3', kind: 'shoe', km: 214.6, retired: false, source: 'strava' },
     { id: 2, name: 'Hoka Clifton 9', kind: 'shoe', km: 488.2, retired: false, source: 'strava' },

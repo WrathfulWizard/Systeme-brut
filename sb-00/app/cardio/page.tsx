@@ -1,25 +1,40 @@
 'use client';
 
+import { useState } from 'react';
 import HubFrame from '@/components/HubFrame';
 import Ascii from '@/components/Ascii';
 import { asciiBars } from '@/lib/ascii';
 import { useSnapshot } from '../providers';
-import type { Sport } from '@/lib/types';
+import type { Sport, CardioPoint } from '@/lib/types';
 
 const SPORT_LABEL: Record<Sport, string> = { run: 'Run', ride: 'Ride', swim: 'Swim' };
 // Shoes worn past ~700–800 km lose midsole rebound — flag the high-mileage ones.
 const SHOE_RETIRE_KM = 750;
 
-export default function Cardio() {
-  const { cardioGoal, cardioProgression, recentRuns, cardioBySport, gear } = useSnapshot();
-  const shoes = gear.filter((g) => g.kind === 'shoe');
+type PeriodKey = 'W' | 'M' | '3M' | '6M' | 'Y';
 
+export default function Cardio() {
+  const { cardioGoal, cardioProgression, recentRuns, cardioBySport, cardioWeekly, cardioMonthly, cardioHealth, gear } = useSnapshot();
+  const shoes = gear.filter((g) => g.kind === 'shoe');
+  const [period, setPeriod] = useState<PeriodKey>('W');
+
+  // W = recent sessions; M/3M = weekly totals; 6M/Y = monthly totals.
+  const periodSeries: Record<PeriodKey, CardioPoint[]> = {
+    W: cardioProgression,
+    M: cardioWeekly.slice(-4),
+    '3M': cardioWeekly.slice(-13),
+    '6M': cardioMonthly.slice(-6),
+    Y: cardioMonthly.slice(-12),
+  };
+  const series = periodSeries[period];
   const progressionRows = asciiBars(
-    cardioProgression.map((c) => ({ label: c.date, value: c.distance, display: `${c.distance.toFixed(1)}km` })),
+    series.map((c) => ({ label: c.date, value: c.distance, display: `${c.distance.toFixed(1)}km` })),
     20,
-    cardioGoal.target,
+    period === 'W' ? cardioGoal.target : undefined,
   );
   const pct = Math.round((cardioGoal.longest / cardioGoal.target) * 100);
+  const PERIODS: PeriodKey[] = ['W', 'M', '3M', '6M', 'Y'];
+  const ch = cardioHealth;
 
   return (
     <div className="page">
@@ -40,11 +55,37 @@ export default function Cardio() {
         </div>
 
         <div className="block">
-          <p className="eyebrow">Run progression — target {cardioGoal.target}km</p>
+          <div className="logbar" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
+            <p className="eyebrow" style={{ margin: 0 }}>Distance — {period === 'W' ? 'recent sessions' : period === 'M' || period === '3M' ? 'weekly totals' : 'monthly totals'}</p>
+            <div className="win-toggle">
+              {PERIODS.map((p) => (
+                <button key={p} className={`wbtn${period === p ? ' on' : ''}`} onClick={() => setPeriod(p)}>{p}</button>
+              ))}
+            </div>
+          </div>
           <Ascii rows={progressionRows} />
           <div className="goalline">
             GOAL {cardioGoal.target.toFixed(1)}KM · LONGEST {cardioGoal.longest.toFixed(1)}KM · {pct}% THERE
           </div>
+        </div>
+
+        <div className="block">
+          <p className="eyebrow">Cardio health — VO₂max · resting HR</p>
+          {(ch.vo2max != null || ch.restingHr != null || ch.hrv != null) ? (
+            <>
+              <div className="bodycomp-now">
+                {ch.vo2max != null && <span><b>{ch.vo2max}</b> VO₂max</span>}
+                {ch.restingHr != null && <span><b>{ch.restingHr}</b> resting HR</span>}
+                {ch.hrv != null && <span><b>{ch.hrv}</b> HRV ms</span>}
+              </div>
+              {ch.vo2Trend.length > 1 && (
+                <>
+                  <p className="eyebrow" style={{ fontSize: 10 }}>VO₂max trend</p>
+                  <Ascii rows={asciiBars(ch.vo2Trend.map((v) => ({ label: v.date, value: v.value, display: String(v.value) })), 20)} />
+                </>
+              )}
+            </>
+          ) : <p className="synced-note">No VO₂max / resting-HR yet — push Apple Health (Health Auto Export → the endpoint on Connections).</p>}
         </div>
 
         <div className="block">

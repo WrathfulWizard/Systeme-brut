@@ -137,6 +137,32 @@ export function getSnapshot(): Snapshot {
   ).all() as { sport: string; n: number; km: number }[])
     .map((r) => ({ sport: r.sport as 'run' | 'ride' | 'swim', count: r.n, distanceKm: Math.round(r.km * 10) / 10 }));
 
+  // Cardio progression aggregated for the week/month/3mo/6mo/year toggle.
+  const cardioWeekly = (db.prepare(`
+    SELECT MIN(occurred_at) AS first_day, SUM(distance_km) AS km
+    FROM cardio_sessions GROUP BY strftime('%Y-%W', occurred_at) ORDER BY first_day DESC LIMIT 52
+  `).all() as { first_day: string; km: number }[]).reverse().map((r) => ({ date: md(r.first_day), distance: Math.round(r.km * 10) / 10 }));
+  const cardioMonthly = (db.prepare(`
+    SELECT MIN(occurred_at) AS first_day, SUM(distance_km) AS km
+    FROM cardio_sessions GROUP BY strftime('%Y-%m', occurred_at) ORDER BY first_day DESC LIMIT 12
+  `).all() as { first_day: string; km: number }[]).reverse().map((r) => ({ date: md(r.first_day), distance: Math.round(r.km * 10) / 10 }));
+
+  // Cardiovascular health from Apple Health: VO2max + resting HR + HRV.
+  const wearLatest = (metric: string): number | undefined => {
+    const r = db.prepare("SELECT value FROM wearable_readings WHERE metric = ? ORDER BY measured_at DESC LIMIT 1").get(metric) as { value: number } | undefined;
+    return r?.value;
+  };
+  const wearTrend = (metric: string) => (db.prepare(
+    "SELECT measured_at AS at, value FROM wearable_readings WHERE metric = ? ORDER BY measured_at DESC LIMIT 24",
+  ).all(metric) as { at: string; value: number }[]).reverse().map((r) => ({ date: md(r.at), value: Math.round(r.value * 10) / 10 }));
+  const cardioHealth = {
+    vo2max: wearLatest('vo2_max'),
+    restingHr: wearLatest('resting_heart_rate'),
+    hrv: wearLatest('hrv'),
+    vo2Trend: wearTrend('vo2_max'),
+    rhrTrend: wearTrend('resting_heart_rate'),
+  };
+
   // Running shoes / bikes + mileage. Strava reports cumulative metres on the gear
   // itself; fall back to summing sessions tagged with this gear id.
   const gear = (db.prepare(`
@@ -285,7 +311,7 @@ export function getSnapshot(): Snapshot {
 
   return {
     insights, recentSets, prLog, tonnage, trainingStatus: computeTrainingStatus(),
-    cardioGoal, cardioProgression, recentRuns, cardioBySport, gear,
+    cardioGoal, cardioProgression, recentRuns, cardioBySport, cardioWeekly, cardioMonthly, cardioHealth, gear,
     protocols, administrations, titration, labResults, serum7d, serumByCompound,
     dailyTotals, calories7d, caloriesByWeek, vitamins, minerals, essentialFats, bodyComposition, weightGoal,
     session: { id: 'SB-00', clock: '03:14:09' },
