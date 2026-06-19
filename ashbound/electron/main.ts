@@ -1,5 +1,6 @@
 import { app, BrowserWindow } from "electron";
 import * as path from "node:path";
+import * as fs from "node:fs";
 
 // Ashbound desktop shell. The game itself runs entirely in the renderer
 // (Phaser); this process only owns the window and OS integration.
@@ -53,12 +54,39 @@ function runSmoke(win: BrowserWindow): void {
     finish(2);
   });
   win.webContents.once("did-finish-load", () => {
+    // Drive synthetic input so combat / menu / interaction paths run too.
+    const sim = `
+      (function(){
+        var K={J:74,SPACE:32,Q:81,TAB:9,E:69,W:87,S:83,D:68,A:65};
+        function press(code){
+          var kc=K[code];
+          ['keydown','keyup'].forEach(function(t){
+            window.dispatchEvent(new KeyboardEvent(t,{key:code,code:code,keyCode:kc,which:kc,bubbles:true}));
+          });
+        }
+        var shot = ${process.env.ASHBOUND_SHOT ? "true" : "false"};
+        var seq = shot
+          ? ['D','D','D','D','D','D','D','D','J','D','D','J','SPACE','D','J']
+          : ['D','D','J','SPACE','Q','TAB','J','E','S','W','E','J'];
+        seq.forEach(function(c,i){ setTimeout(function(){ try{press(c);}catch(e){} }, 800+i*150); });
+      })();
+    `;
+    win.webContents.executeJavaScript(sim).catch(() => {});
     setTimeout(async () => {
       try {
         const raw = await win.webContents.executeJavaScript(
           "JSON.stringify(window.__ashbound||{})",
         );
         const st = JSON.parse(raw || "{}");
+        if (process.env.ASHBOUND_SHOT) {
+          try {
+            const img = await win.webContents.capturePage();
+            fs.writeFileSync(process.env.ASHBOUND_SHOT, img.toPNG());
+            console.log("[smoke] screenshot ->", process.env.ASHBOUND_SHOT);
+          } catch (e) {
+            console.error("[smoke] screenshot failed", e);
+          }
+        }
         if (st.error) {
           console.error("[smoke] renderer threw:", st.error);
           finish(3);

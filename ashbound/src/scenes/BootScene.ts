@@ -1,20 +1,11 @@
 import Phaser from "phaser";
-import { TILE } from "../config";
 import { bakeFrame, bakeFrames, makeAnim } from "../art/pixelart";
-import {
-  PAL,
-  PLAYER_FRAMES,
-  HOLLOW_FRAMES,
-  SLASH,
-  PILLAR,
-  TOMBSTONE,
-  DEADTREE,
-  EMBER_A,
-  EMBER_B,
-} from "../art/sprites";
+import { PAL, PLAYER_FRAMES, HOLLOW_FRAMES, BEAST_FRAMES, SLASH, EMBER_A, EMBER_B } from "../art/sprites";
+import { generateTiles, generateProps, generateBoss, T } from "../art/gen";
+import { BIOMES } from "../world/biomes";
 
-// Builds every texture procedurally, then hands off to the world. No external
-// asset files — the art lives in code so the prototype runs anywhere.
+// Builds every texture procedurally — characters, a full biome tileset, props,
+// the boss — then hands off to the world. No external asset files.
 export class BootScene extends Phaser.Scene {
   constructor() {
     super("Boot");
@@ -27,19 +18,19 @@ export class BootScene extends Phaser.Scene {
     bakeFrames(this, "player_side", PLAYER_FRAMES.side, PAL);
     bakeFrames(this, "hollow_front", HOLLOW_FRAMES.front, PAL);
     bakeFrames(this, "hollow_side", HOLLOW_FRAMES.side, PAL);
+    bakeFrames(this, "beast_front", BEAST_FRAMES.front, PAL);
+    bakeFrames(this, "beast_side", BEAST_FRAMES.side, PAL);
 
-    // Walk cycles use frames 1 & 2; idle is frame 0 (set directly on sprites).
     makeAnim(this, "player-front-walk", "player_front", 3, 7);
     makeAnim(this, "player-back-walk", "player_back", 3, 7);
     makeAnim(this, "player-side-walk", "player_side", 3, 7);
     makeAnim(this, "hollow-front-walk", "hollow_front", 3, 5);
     makeAnim(this, "hollow-side-walk", "hollow_side", 3, 5);
+    makeAnim(this, "beast-front-walk", "beast_front", 3, 9);
+    makeAnim(this, "beast-side-walk", "beast_side", 3, 9);
 
-    // Effects & props.
+    // Effects.
     bakeFrame(this, "slash", SLASH, PAL);
-    bakeFrame(this, "pillar", PILLAR, PAL);
-    bakeFrame(this, "tombstone", TOMBSTONE, PAL);
-    bakeFrame(this, "deadtree", DEADTREE, PAL);
     bakeFrame(this, "ember_0", EMBER_A, PAL);
     bakeFrame(this, "ember_1", EMBER_B, PAL);
     if (!this.anims.exists("ember-flicker")) {
@@ -51,43 +42,19 @@ export class BootScene extends Phaser.Scene {
       });
     }
 
-    this.makeGroundTiles();
+    // World art.
+    const tiles = generateTiles(this, BIOMES);
+    this.registry.set("tiles", tiles);
+    generateProps(this);
+    generateBoss(this);
     this.makeShadow();
+
+    void T; // tile size is consumed by the world
 
     this.scene.start("Game");
     this.scene.launch("UI");
   }
 
-  // A handful of ash-cobble variants with random cracks/specks for variation.
-  private makeGroundTiles(): void {
-    const base = [0x14121b, 0x16131d, 0x121019];
-    for (let v = 0; v < 3; v++) {
-      const key = `ground_${v}`;
-      if (this.textures.exists(key)) this.textures.remove(key);
-      const tex = this.textures.createCanvas(key, TILE, TILE);
-      if (!tex) continue;
-      const ctx = tex.context;
-      ctx.fillStyle = "#" + base[v].toString(16).padStart(6, "0");
-      ctx.fillRect(0, 0, TILE, TILE);
-      // subtle grout lines
-      ctx.fillStyle = "#0e0c14";
-      ctx.fillRect(0, (v * 5) % TILE, TILE, 1);
-      ctx.fillRect((v * 7) % TILE, 0, 1, TILE);
-      // deterministic-ish specks
-      let seed = v * 9301 + 49297;
-      const rnd = () => {
-        seed = (seed * 9301 + 49297) % 233280;
-        return seed / 233280;
-      };
-      for (let i = 0; i < 10; i++) {
-        ctx.fillStyle = rnd() > 0.5 ? "#1d1a26" : "#0e0c14";
-        ctx.fillRect(Math.floor(rnd() * TILE), Math.floor(rnd() * TILE), 1, 1);
-      }
-      tex.refresh();
-    }
-  }
-
-  // Soft round drop-shadow used under every entity to sell the 2.5D ground plane.
   private makeShadow(): void {
     const key = "shadow";
     if (this.textures.exists(key)) return;

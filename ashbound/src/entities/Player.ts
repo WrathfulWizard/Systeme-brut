@@ -10,6 +10,8 @@ type Dir = "front" | "back" | "side";
 export class Player extends Phaser.Physics.Arcade.Sprite {
   hp: number = PLAYER.maxHp;
   stamina: number = PLAYER.maxStamina;
+  maxHp: number = PLAYER.maxHp;
+  maxStamina: number = PLAYER.maxStamina;
 
   private mode: Mode = "free";
   private faceX = 0;
@@ -62,7 +64,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this.regenDelayT = Math.max(0, this.regenDelayT - dt);
 
     if (this.regenDelayT <= 0 && this.mode !== "dead") {
-      this.stamina = Math.min(PLAYER.maxStamina, this.stamina + PLAYER.staminaRegen * dt);
+      this.stamina = Math.min(this.maxStamina, this.stamina + PLAYER.staminaRegen * dt);
     }
 
     if (this.mode === "dead") {
@@ -107,6 +109,10 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
 
     // start actions
     if (this.busyT <= 0) {
+      if (input.healPressed && playerState.estus > 0 && this.hp < this.maxHp) {
+        this.drinkEstus(body);
+        return;
+      }
       if (input.attackPressed && this.stamina >= PLAYER.attackCost) {
         this.beginAttack();
         return;
@@ -200,10 +206,29 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     }
   }
 
+  private drinkEstus(body: Phaser.Physics.Arcade.Body): void {
+    playerState.estus -= 1;
+    this.hp = Math.min(this.maxHp, this.hp + Math.round(this.maxHp * 0.45));
+    this.busyT = 0.55;
+    body.setVelocity(0, 0);
+    this.applyAnim(false);
+    this.setTint(0x6fe08a);
+    this.scene.time.delayedCall(450, () => this.active && this.clearTint());
+  }
+
+  /** Lava / hazards — bleeds through i-frames but on a throttle (scene-driven). */
+  envDamage(amount: number): void {
+    if (this.mode === "dead") return;
+    this.hp = Math.max(0, this.hp - amount);
+    this.setTintFill(0xd8702a);
+    this.scene.time.delayedCall(60, () => this.active && this.clearTint());
+    if (this.hp <= 0) this.die();
+  }
+
   private resolveSwing(): void {
     const half = PLAYER.attackArc / 2;
     const reach = PLAYER.attackReach;
-    for (const enemy of this.world.enemyList()) {
+    for (const enemy of this.world.meleeTargets()) {
       if (!enemy.active || this.hitThisSwing.has(enemy)) continue;
       const dx = enemy.x - this.x;
       const dy = enemy.y - this.y;
@@ -244,8 +269,8 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   }
 
   respawn(x: number, y: number): void {
-    this.hp = PLAYER.maxHp;
-    this.stamina = PLAYER.maxStamina;
+    this.hp = this.maxHp;
+    this.stamina = this.maxStamina;
     this.mode = "free";
     this.setPosition(x, y);
     this.setAlpha(1);
@@ -284,6 +309,8 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   private publish(): void {
     playerState.hp = this.hp;
     playerState.stamina = this.stamina;
+    playerState.maxHp = this.maxHp;
+    playerState.maxStamina = this.maxStamina;
   }
 
   destroy(fromScene?: boolean): void {

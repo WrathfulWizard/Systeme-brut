@@ -40,6 +40,23 @@ export function bakeFrame(
   return [w, h];
 }
 
+/** Bake a texture by drawing straight onto its 2D context (tiles, props, fx). */
+export function bakeCanvas(
+  scene: Phaser.Scene,
+  key: string,
+  w: number,
+  h: number,
+  draw: (ctx: CanvasRenderingContext2D, w: number, h: number) => void,
+): void {
+  if (scene.textures.exists(key)) scene.textures.remove(key);
+  const tex = scene.textures.createCanvas(key, w, h);
+  if (!tex) throw new Error(`failed to create canvas texture: ${key}`);
+  const ctx = tex.context;
+  ctx.clearRect(0, 0, w, h);
+  draw(ctx, w, h);
+  tex.refresh();
+}
+
 /** Bake every frame of a named clip: `${key}_0`, `${key}_1`, ... */
 export function bakeFrames(
   scene: Phaser.Scene,

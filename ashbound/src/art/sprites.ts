@@ -223,47 +223,47 @@ export const SLASH = [
   "..................",
 ];
 
-export const PILLAR = [
-  ".vXXXXv.",
-  ".vXvvXv.",
-  ".vXvvXv.",
-  ".xXvvXx.",
-  ".xXvvXx.",
-  ".xXvvXx.",
-  ".xXvvXx.",
-  ".xXxxXx.",
-  ".xXvvXx.",
-  ".xxXXxx.",
-  "xXvvvvXx",
-  "xXvxxvXx",
-  "xXvvvvXx",
-  "xxXXXXxx",
+// ── Mireling: the hunched beast ─────────────────────────────────────────────
+const B_FRONT_IDLE = [
+  "..k......k..",
+  "..kk.kk.kk..",
+  ".kgggggggk..",
+  ".kgyGgGygk..",
+  ".kgggggggk..",
+  "kgGgggggGgk.",
+  "kgkgggggkgk.",
+  ".kgggggggk..",
+  "..kk.k.kk...",
+  "..k..k..k...",
 ];
-export const TOMBSTONE = [
-  "..xxxx..",
-  ".xXXXXx.",
-  ".xXvvXx.",
-  ".xXttXx.",
-  ".xXvvXx.",
-  ".xXvvXx.",
-  ".xXvvXx.",
-  "xXXXXXXx",
-  "xxxxxxxx",
+const B_FRONT_A = B_FRONT_IDLE.map((r, i) =>
+  i === 8 ? ".kk..k..kk.." : i === 9 ? ".k...k...k.." : r,
+);
+const B_FRONT_B = B_FRONT_IDLE.map((r, i) =>
+  i === 8 ? "..kk.k.kk..." : i === 9 ? "...k.k.k...." : r,
+);
+const B_SIDE_IDLE = [
+  ".kkk........",
+  "kggggk......",
+  "kgyGgkk.....",
+  "kgggggk.....",
+  "kgGgggggk...",
+  "kgkgggggk...",
+  ".kggggggk...",
+  "..kg.gk.k...",
+  "..k..k..k...",
 ];
-export const DEADTREE = [
-  "...w..w...",
-  "..w.ww.w..",
-  "...wwww...",
-  "w...ww...w",
-  ".w..ww..w.",
-  "..w.ww.ww.",
-  "...wwww...",
-  "....ww....",
-  "...WwwW...",
-  "...WwwW...",
-  "..WWwwWW..",
-  ".WW.ww.WW.",
-];
+const B_SIDE_A = B_SIDE_IDLE.map((r, i) =>
+  i === 7 ? "..kgk.gk...." : i === 8 ? ".k..k..k...." : r,
+);
+const B_SIDE_B = B_SIDE_IDLE.map((r, i) =>
+  i === 7 ? "...kg.k.gk.." : i === 8 ? "...k..k..k.." : r,
+);
+
+export const BEAST_FRAMES = {
+  front: [B_FRONT_IDLE, B_FRONT_A, B_FRONT_B],
+  side: [B_SIDE_IDLE, B_SIDE_A, B_SIDE_B],
+};
 // Ember / checkpoint, two flicker frames.
 export const EMBER_A = [
   "....y.....",

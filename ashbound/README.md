@@ -18,53 +18,81 @@ npm start        # builds, then launches the desktop app
 > First run downloads Electron (~persistent native binary). After that,
 > `npm start` is instant.
 
+See [`LORE.md`](LORE.md) for the full world bible.
+
 ## Controls
 
-| Action            | Keys                    |
-| ----------------- | ----------------------- |
-| Move              | `WASD` / arrow keys     |
-| Attack            | `J` or **left mouse**   |
-| Dodge roll        | `SPACE` (i-frames)      |
-| Lock on / off     | `TAB` or **right mouse**|
-| Rest at the ember | `E` (when near it)      |
+| Action              | Keys                     |
+| ------------------- | ------------------------ |
+| Move                | `WASD` / arrow keys      |
+| Attack              | `J` or **left mouse**    |
+| Dodge roll          | `SPACE` (i-frames)       |
+| Lock on / off       | `TAB` or **right mouse** |
+| Drink estus (heal)  | `Q`                      |
+| Tend ember / select | `E`                      |
+| Menu navigate       | `W` / `S`                |
 
-## What's in this vertical slice
+## What's in the build
 
-- **Soulslike combat loop** — a stamina bar gates attacks and dodges; attacks
-  are *committed* (wind-up → active → recovery, no instant cancel); the dodge
-  roll has invulnerability frames early in the animation.
-- **Lock-on** — strafe combat around the nearest Hollow; the Penitent always
-  faces a locked target.
-- **Telegraphed enemy AI** — Hollows idle, aggro, chase, then **wind up a slow,
-  readable, punishable strike** (the magenta ring is the "incoming" flag).
-- **2.5D depth** — every entity and prop is Y-sorted and casts a soft ground
-  shadow, so things overlap correctly on the ground plane.
-- **Bonfire loop** — die and respawn at the ember; resting there heals you and
-  resurrects the Hollows, Souls-style.
-- **All art is generated in code** (`src/art/`) — crisp baked pixel textures,
-  zero external asset files, so it runs anywhere.
+**An open world of five hand-tuned regions** — Ashen Barrows, The Mireheart,
+Emberreach Highlands, The Palewood, and the boss fortress of the Cinderhold —
+laid out as one seamless map with noise-warped borders and chokepoints. Each
+region has its own palette, ground art, props, ambient colour-grade and enemy,
+announced by an **Elden-Ring-style title card** as you cross into it.
+
+- **Soulslike combat** — stamina-gated, *committed* attacks (wind-up → active →
+  recovery); dodge roll with i-frames; lock-on strafe combat.
+- **Three enemy archetypes** — the patient Hollow, the swarming Mireling, the
+  heavy Emberknight — each with telegraphed, punishable strikes.
+- **A boss** — the **Cinder Lord**, sealed behind a fog gate, with telegraphed
+  overhead slams and a faster second phase at half health.
+- **RPG progression** — enemies drop **runes**; spend them at an ember to
+  *reinforce* (level up). Die and your runes spill as a recoverable bloodstain —
+  reclaim them or lose them on a second death.
+- **Estus flasks** — limited heals, refilled only by tending an ember.
+- **Hazards** — lava in the Highlands burns through your guard.
+- **Save/continue** — runes, level and last ember persist between runs.
+- **2.5D depth** — everything Y-sorted with soft shadows and additive lighting.
+- **100% generated art** (`src/art/`) — characters, a full biome tileset, props
+  and the boss are all baked procedurally in code. Zero external asset files.
 
 ## Architecture
 
 ```
-electron/        Desktop shell (main + preload). Owns the window only.
+electron/        Desktop shell (main + preload). Owns the window; headless smoke.
 src/
   main.ts        Phaser bootstrap (pixel-perfect, RESIZE scale).
-  config.ts      All combat/AI tuning in one place.
-  art/           Pixel-art mini-DSL + sprite definitions, baked to textures.
+  config.ts      Combat / AI tuning.
+  art/
+    pixelart.ts  Texture bakers (grid + direct-canvas).
+    sprites.ts   Hand-authored character grids (Penitent, Hollow, Mireling).
+    gen.ts       Procedural tileset, props, boss generators.
+    util.ts      Seeded RNG, value-noise, colour math.
+  world/
+    biomes.ts    The five regions: palette, props, enemy, lore.
+    worldgen.ts  Voronoi zones, terrain, props, bonfires, spawns, boss arena.
   systems/       Input (edge-detected), shared HUD state.
-  entities/      Player (the Penitent), Enemy (the Hollow) — state machines.
+  entities/      Player, Enemy (archetypes), Boss — state machines.
   scenes/        Boot (bake art) → Game (world) + UI (HUD overlay).
 scripts/         Static smoke test + static-file copy.
 ```
 
-## Verify
+## Verify (headless)
+
+The Electron shell has a smoke mode that boots the *real* renderer under a
+virtual display, drives synthetic input through combat and the bonfire menu,
+and fails on any thrown error:
+
+```bash
+ASHBOUND_SMOKE=1 xvfb-run -a electron . --no-sandbox          # boot + input
+ASHBOUND_SHOT=out.png ASHBOUND_SMOKE=1 xvfb-run -a electron . --no-sandbox  # + screenshot
+```
+
+And the static checks:
 
 ```bash
 npm run typecheck      # strict TS, no errors
 npm run smoke          # static: build artifacts wired correctly
-npm run smoke:runtime  # boots the real renderer headlessly and checks for throws
-                       # (on headless Linux: prefix with `xvfb-run -a`)
 ```
 
 ## Package distributables
@@ -76,9 +104,11 @@ npm run dist:win   # → release/Ashbound Setup *.exe (run on Windows)
 
 ## Roadmap (next slices)
 
-- Replace baked placeholder sprites with authored sheets (the baker stays —
-  just swap the grids, or load real PNG atlases).
-- Estus/flask healing, weapon move-sets & poise, parry/riposte.
-- Multiple enemy archetypes + a first boss with phases.
-- Hand-built tilemap levels (Tiled) with rooms, fog walls, and the ember network.
-- Save files via the existing preload IPC bridge.
+- **Art depth** — more walk/attack frames and 4-direction sprites; authored
+  sheets can drop straight into the baker (swap grids or load PNG atlases).
+- **Combat** — weapon move-sets, poise/stagger, parry & riposte, ranged foes.
+- **More bosses** — one regional boss per zone, each gating a reward.
+- **World** — interiors (the Cinderhold proper), an ember fast-travel network,
+  NPCs with branching dialogue, and findable items/keys.
+- **Audio** — ambient beds per region + combat SFX.
+- **Map/menus** — pause screen, equipment, a world map.

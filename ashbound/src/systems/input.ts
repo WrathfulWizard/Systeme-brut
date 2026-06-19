@@ -7,6 +7,9 @@ export interface InputState {
   attackPressed: boolean; // edge
   lockPressed: boolean; // edge
   interactPressed: boolean; // edge
+  healPressed: boolean; // edge
+  upPressed: boolean; // edge (menu)
+  downPressed: boolean; // edge (menu)
 }
 
 // Wraps keyboard + mouse into a per-frame InputState with proper edge
@@ -18,11 +21,14 @@ export class GameInput {
   private latchAttack = false;
   private latchLock = false;
   private latchInteract = false;
+  private latchHeal = false;
+  private latchUp = false;
+  private latchDown = false;
 
   constructor(scene: Phaser.Scene) {
     const kb = scene.input.keyboard!;
     this.keys = kb.addKeys(
-      "W,A,S,D,UP,DOWN,LEFT,RIGHT,SPACE,SHIFT,J,K,TAB,E,ENTER",
+      "W,A,S,D,UP,DOWN,LEFT,RIGHT,SPACE,SHIFT,J,K,TAB,E,Q,ENTER",
     ) as Record<string, Phaser.Input.Keyboard.Key>;
 
     // Stop TAB from moving focus / browser default.
@@ -31,6 +37,11 @@ export class GameInput {
     kb.on("keydown-J", () => (this.latchAttack = true));
     kb.on("keydown-TAB", () => (this.latchLock = true));
     kb.on("keydown-E", () => (this.latchInteract = true));
+    kb.on("keydown-Q", () => (this.latchHeal = true));
+    kb.on("keydown-W", () => (this.latchUp = true));
+    kb.on("keydown-UP", () => (this.latchUp = true));
+    kb.on("keydown-S", () => (this.latchDown = true));
+    kb.on("keydown-DOWN", () => (this.latchDown = true));
 
     scene.input.on("pointerdown", (p: Phaser.Input.Pointer) => {
       if (p.leftButtonDown()) this.latchAttack = true;
@@ -57,8 +68,12 @@ export class GameInput {
       attackPressed: this.latchAttack,
       lockPressed: this.latchLock,
       interactPressed: this.latchInteract,
+      healPressed: this.latchHeal,
+      upPressed: this.latchUp,
+      downPressed: this.latchDown,
     };
     this.latchRoll = this.latchAttack = this.latchLock = this.latchInteract = false;
+    this.latchHeal = this.latchUp = this.latchDown = false;
     return out;
   }
 }
