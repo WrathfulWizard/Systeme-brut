@@ -190,6 +190,17 @@ export function deleteBodyMetric(id: number) {
   getDb().prepare('DELETE FROM body_metrics WHERE id = ?').run(id);
 }
 
+/** Set the active bodyweight goal (kg). Creates the goal row if none exists. */
+export function setWeightGoal(targetKg: number) {
+  const db = getDb();
+  const existing = db.prepare("SELECT id FROM goals WHERE metric='body_mass' AND status='active' LIMIT 1").get() as { id: number } | undefined;
+  if (existing) {
+    db.prepare('UPDATE goals SET target_value = ?, unit = ? WHERE id = ?').run(targetKg, 'kg', existing.id);
+  } else {
+    db.prepare("INSERT INTO goals (node, metric, target_value, unit, status, notes) VALUES ('nutrition','body_mass',?,'kg','active','Bodyweight target')").run(targetKg);
+  }
+}
+
 /* ---- continuous protocol (Node B rework) -------------------------------- */
 
 const nowIso = () => new Date().toISOString();

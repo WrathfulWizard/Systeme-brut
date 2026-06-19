@@ -11,7 +11,7 @@ import {
   addSet, updateSet, deleteSet, addAdministration, updateAdministration, deleteAdministration,
   addTitration, deleteTitration, addLabPanel, deleteLabPanel,
   addProtocol, titrateProtocol, endProtocol, deleteProtocol, resolveInsight,
-  addBodyMetric, deleteBodyMetric,
+  addBodyMetric, deleteBodyMetric, setWeightGoal,
 } from './db/mutations';
 import { agentStatus, setAgentModel, agentChat, agentReview, agentSweep, type StreamHandlers } from './agent/ollama';
 import { ensureOllamaRunning, pullDefaultIfEmpty } from './agent/launch';
@@ -108,6 +108,7 @@ function registerIpc() {
   ipcMain.handle('sb:deleteLabPanel', (_e, id: number) => { deleteLabPanel(id); return getSnapshot(); });
   ipcMain.handle('sb:addBodyMetric', (_e, input: BodyMetricInput) => { addBodyMetric(input); return getSnapshot(); });
   ipcMain.handle('sb:deleteBodyMetric', (_e, id: number) => { deleteBodyMetric(id); return getSnapshot(); });
+  ipcMain.handle('sb:setWeightGoal', (_e, targetKg: number) => { setWeightGoal(targetKg); return getSnapshot(); });
   ipcMain.handle('sb:saveStravaApp', (_e, clientId: string, clientSecret: string) => {
     setStravaApp({ clientId: clientId.trim(), clientSecret: clientSecret.trim() });
     return meta();

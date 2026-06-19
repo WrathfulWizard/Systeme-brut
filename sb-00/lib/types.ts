@@ -223,6 +223,7 @@ export interface SbBridge {
   /* substrate: body composition (caliper bf% + tape measurements) */
   addBodyMetric(input: BodyMetricInput): Promise<Snapshot>;
   deleteBodyMetric(id: number): Promise<Snapshot>;
+  setWeightGoal(targetKg: number): Promise<Snapshot>;
   /* pharmacology protocol */
   addProtocol(input: ProtocolInput): Promise<Snapshot>;
   titrateProtocol(id: number, newDoseMg: number, note?: string): Promise<Snapshot>;

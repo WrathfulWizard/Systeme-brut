@@ -9,10 +9,12 @@ import { asciiBars } from '@/lib/ascii';
 import { useSb } from '../providers';
 
 export default function Substrate() {
-  const { snapshot, isDesktop, deleteBodyMetric } = useSb();
+  const { snapshot, isDesktop, deleteBodyMetric, setWeightGoal } = useSb();
   const { insights, dailyTotals, calories7d, caloriesByWeek, vitamins, minerals, essentialFats, bodyComposition, weightGoal } = snapshot;
   const nutritionFeed = insights.filter((i) => i.nodes.includes('nutrition'));
   const [calWin, setCalWin] = useState<number>(0); // 0 = 7d daily; else weeks
+  const [editGoal, setEditGoal] = useState(false);
+  const [goalInput, setGoalInput] = useState(String(weightGoal.target));
 
   const calRows = calWin === 0
     ? asciiBars(calories7d.map((c) => ({ label: c.day, value: c.kcal, display: `${c.kcal}kcal` })))
@@ -37,7 +39,19 @@ export default function Substrate() {
         </div>
 
         <div className="block">
-          <p className="eyebrow">Mass — bodyweight</p>
+          <div className="logbar" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
+            <p className="eyebrow" style={{ margin: 0 }}>Mass — bodyweight</p>
+            {isDesktop && (editGoal ? (
+              <span style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
+                <input className="fld w-narrow" type="number" inputMode="decimal" value={goalInput}
+                  onChange={(e) => setGoalInput(e.target.value)} autoFocus />
+                <button className="rowbtn" onClick={async () => { const n = Number(goalInput); if (n > 0) await setWeightGoal(n); setEditGoal(false); }}>save</button>
+                <button className="rowbtn" onClick={() => { setGoalInput(String(weightGoal.target)); setEditGoal(false); }}>cancel</button>
+              </span>
+            ) : (
+              <button className="rowbtn" onClick={() => { setGoalInput(String(weightGoal.target)); setEditGoal(true); }}>edit goal</button>
+            ))}
+          </div>
           {weightGoal.current != null ? (
             <>
               <Ascii rows={weightRows} />

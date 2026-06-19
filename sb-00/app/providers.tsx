@@ -34,6 +34,7 @@ interface Ctx {
   deleteLabPanel: (id: number) => Promise<void>;
   addBodyMetric: (input: BodyMetricInput) => Promise<void>;
   deleteBodyMetric: (id: number) => Promise<void>;
+  setWeightGoal: (targetKg: number) => Promise<void>;
   saveStravaApp: (clientId: string, clientSecret: string) => Promise<void>;
   addProtocol: (input: ProtocolInput) => Promise<void>;
   titrateProtocol: (id: number, newDoseMg: number, note?: string) => Promise<void>;
@@ -110,6 +111,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
     deleteLabPanel: async (id) => { if (window.sb) { const s = await window.sb.deleteLabPanel(id); setSnapshot(s); setSync(s.syncMeta); } },
     addBodyMetric: async (input) => { if (window.sb) { const s = await window.sb.addBodyMetric(input); setSnapshot(s); setSync(s.syncMeta); } },
     deleteBodyMetric: async (id) => { if (window.sb) { const s = await window.sb.deleteBodyMetric(id); setSnapshot(s); setSync(s.syncMeta); } },
+    setWeightGoal: async (targetKg) => { if (window.sb) { const s = await window.sb.setWeightGoal(targetKg); setSnapshot(s); setSync(s.syncMeta); } },
     saveStravaApp: async (clientId, clientSecret) => { if (window.sb) setSync(await window.sb.saveStravaApp(clientId, clientSecret)); },
     addProtocol: async (input) => { if (window.sb) { const s = await window.sb.addProtocol(input); setSnapshot(s); setSync(s.syncMeta); } },
     titrateProtocol: async (id, mg, note) => { if (window.sb) { const s = await window.sb.titrateProtocol(id, mg, note); setSnapshot(s); setSync(s.syncMeta); } },
