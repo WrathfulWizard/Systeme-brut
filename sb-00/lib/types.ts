@@ -106,8 +106,6 @@ export interface Snapshot {
   cardioHealth: {
     vo2max?: number; restingHr?: number; hrv?: number; heartRate?: number;
     vo2Trend: { date: string; value: number }[];
-    rhrTrend: { date: string; value: number }[];
-    hrTrend: { date: string; value: number }[];
   };
   /** heart-rate command readout — live, resting, hourly + W/M/3M/6M/Y series */
   heartRate: HeartRateBlock;

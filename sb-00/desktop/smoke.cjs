@@ -45,7 +45,17 @@ assert.equal(snap.insights.length, 5, 'insights seeded');
 assert.equal(snap.insights.filter((i) => i.severity === 'flag').length, 3, '3 flags');
 assert.ok(snap.insights.find((i) => i.nodes.length > 1), 'has a cross-node insight');
 assert.equal(snap.prLog.length, 4, '4 main lifts in PR log');
-assert.ok(snap.prLog.find((p) => p.exercise === 'Squat' && p.status === 'NEW'), 'squat is a new PR');
+// NEW status is wall-clock-relative (PR within 3 days), so don't lean on fixed
+// seed dates — log a guaranteed top-volume Squat session dated today (seed squat
+// session volume is 3920; 2×200×10 = 4000 beats it) and assert NEW on that.
+{
+  const mutPR = require('../dist-electron/desktop/db/mutations.js');
+  const todayISO = new Date().toISOString().slice(0, 10);
+  mutPR.addSet({ date: todayISO, exercise: 'Squat', setKind: 'straight', weightKg: 200, reps: 10 });
+  mutPR.addSet({ date: todayISO, exercise: 'Squat', setKind: 'straight', weightKg: 200, reps: 10 });
+  snap = getSnapshot();
+}
+assert.ok(snap.prLog.find((p) => p.exercise === 'Squat' && p.status === 'NEW'), 'a top-volume squat logged today is a NEW PR');
 assert.ok(snap.serum7d.length === 7 && snap.serum7d.every((s) => s.mg > 0), 'serum estimate computed');
 assert.ok(snap.cardioGoal.target === 10 && snap.cardioGoal.longest === 7.2, 'cardio goal/longest');
 assert.equal(snap.recentRuns.length, 4, 'recent runs');

@@ -31,12 +31,6 @@ function creds() {
   return { clientId, clientSecret };
 }
 
-/** Whether Strava API app credentials are available (saved or via env). */
-export function hasStravaApp(): boolean {
-  const app = getStravaApp();
-  return !!(app?.clientId && app?.clientSecret) || !!(process.env.STRAVA_CLIENT_ID && process.env.STRAVA_CLIENT_SECRET);
-}
-
 export function buildAuthUrl(): string {
   const { clientId } = creds();
   const p = new URLSearchParams({
