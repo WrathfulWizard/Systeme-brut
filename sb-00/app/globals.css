@@ -439,6 +439,39 @@ table tbody tr:hover td { background: rgba(235, 235, 240, 0.025); }
 .block { animation: blockIn 0.4s ease both; }
 @keyframes blockIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
 
+/* ambient HUD texture — ties every screen to the boot aesthetic. Fixed, inert,
+   barely-there: a faint scanline weave + a corner vignette for depth. Sits above
+   content but never intercepts input. No colour — magenta stays flag-only. */
+body::before, body::after {
+  content: ''; position: fixed; inset: 0; pointer-events: none; z-index: 60;
+}
+body::before {
+  background: radial-gradient(135% 105% at 50% 38%, transparent 72%, rgba(0, 0, 0, 0.38));
+}
+body::after {
+  background: repeating-linear-gradient(to bottom, rgba(255, 255, 255, 0.016) 0 1px, transparent 1px 3px);
+  mix-blend-mode: overlay; opacity: 0.7;
+}
+
+/* selection + scrollbars stay in the monochrome system (no magenta = no flag) */
+::selection { background: rgba(235, 235, 240, 0.18); }
+* { scrollbar-width: thin; scrollbar-color: var(--line-soft) transparent; }
+::-webkit-scrollbar { width: 9px; height: 9px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: var(--line-soft); border: 2px solid transparent; background-clip: padding-box;
+  transition: background 0.16s ease;
+}
+::-webkit-scrollbar-thumb:hover { background: var(--line); }
+
+/* SB-Σ launch briefing — the review waiting at startup reads as a HUD dossier,
+   not a passing chat line: full width, boxed, with the synthesizer's accent. */
+.msg.briefing {
+  align-self: stretch; max-width: 100%; border: 1px solid var(--line); border-left: 2px solid var(--mag);
+  padding: 13px 16px; background: rgba(235, 235, 240, 0.02); animation: blockIn 0.45s ease both;
+}
+.msg.briefing .who { color: var(--mag); letter-spacing: 0.12em; }
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; }
 }

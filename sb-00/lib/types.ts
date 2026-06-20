@@ -169,6 +169,19 @@ export interface ModelPullStatus {
   error?: string;
 }
 
+/**
+ * A full SB-Σ briefing produced once at launch — generated while the boot
+ * sequence runs, so a complete review is already waiting when the hub opens.
+ * `pending` = still synthesizing (boot holds), `ready` = text waiting,
+ * `unavailable` = no agent/model this launch (boot proceeds without it).
+ */
+export interface StartupReview {
+  status: 'pending' | 'ready' | 'unavailable';
+  text?: string;
+  at?: string;       // ISO timestamp the briefing was produced
+  error?: string;
+}
+
 /** Result of an SB-Σ sweep: how many flags it raised into the Flags feed. */
 export interface SweepResult {
   ran: boolean;        // did the model actually run (false on offline / no model)
@@ -250,6 +263,10 @@ export interface SbBridge {
   agentChat(messages: ChatMessage[]): Promise<void>;          // streams via events
   agentReview(): Promise<void>;                               // proactive once-over, streams
   agentSweep(): Promise<SweepResult>;                         // raises persistent flags
+  /** The launch briefing SB-Σ prepared while the boot sequence ran. */
+  getStartupReview(): Promise<StartupReview>;
+  /** Fires when the launch briefing resolves (ready or unavailable). */
+  onReviewReady(cb: (r: StartupReview) => void): () => void;
   onAgentToken(cb: (chunk: string) => void): () => void;
   onAgentDone(cb: (full: string) => void): () => void;
   onAgentError(cb: (message: string) => void): () => void;

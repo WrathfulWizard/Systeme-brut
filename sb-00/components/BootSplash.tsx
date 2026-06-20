@@ -7,32 +7,72 @@ import { useEffect, useRef, useState } from 'react';
  * a decrypting title, HUD telemetry and the nodes mounting one by one before the
  * hub takes over. Shows once per app launch (sessionStorage), respects
  * reduced-motion. Stays monochrome — magenta means "flag", never decoration.
+ *
+ * The sequence does not finish until SB-Σ's launch briefing is ready: after the
+ * nodes mount it holds in a "synthesizing" state until the backend signals the
+ * review has resolved (ready or unavailable), so the hub opens with a full
+ * review already waiting. A hard cap and click-to-skip keep it from ever hanging.
  */
 
 const NODES = ['cardio', 'lifting', 'pharmacology', 'substrate', 'flags', 'connections', 'synthesizer'];
 const GLYPHS = 'アカサタナハマヤラワ0123456789ABCDEF<>/\\[]{}=+*';
 const TITLE = 'SYSTEME BRUT';
 const SCRAMBLE = 'アカサ#%&/\\<>0189ABEF';
+const SYNTH_CAP_MS = 45_000;   // never hold the boot longer than this
 const rnd = (s: string) => s[Math.floor(Math.random() * s.length)];
 
 export default function BootSplash() {
   const [show, setShow] = useState(true);
   const [fading, setFading] = useState(false);
-  const [done, setDone] = useState(0);   // nodes mounted
+  const [done, setDone] = useState(0);     // nodes mounted
   const [ready, setReady] = useState(false);
+  const [synth, setSynth] = useState(false);   // base done, awaiting briefing
   const [title, setTitle] = useState('············');
   const [addr, setAddr] = useState('0x0000');
   const canvas = useRef<HTMLCanvasElement>(null);
   const accel = useRef(false);
+
+  // Two gates must both close before the boot dismisses: the base animation and
+  // the launch briefing. Kept in refs so async callbacks read current values.
+  const baseDone = useRef(false);
+  const reviewDone = useRef(false);
+  const dismissed = useRef(false);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
     if (sessionStorage.getItem('sb-booted')) { setShow(false); return; }
     sessionStorage.setItem('sb-booted', '1');
 
+    const dismiss = () => {
+      if (dismissed.current) return;
+      dismissed.current = true;
+      setFading(true);
+      setTimeout(() => setShow(false), 560);
+    };
+    // Dismiss only once BOTH gates are closed.
+    const tryDismiss = () => { if (baseDone.current && reviewDone.current) dismiss(); };
+    const markBaseDone = () => { baseDone.current = true; setSynth(!reviewDone.current); tryDismiss(); };
+    const markReviewDone = () => { reviewDone.current = true; setSynth(false); tryDismiss(); };
+
+    // --- gate 2: the launch briefing ---------------------------------------
+    // In a plain browser there's no agent, so don't wait. On desktop, hold until
+    // the backend signals the review resolved — capped so we never hang.
+    let offReview: (() => void) | undefined;
+    const sb = window.sb;
+    if (!sb) {
+      reviewDone.current = true;
+    } else {
+      sb.getStartupReview().then((r) => { if (r.status !== 'pending') markReviewDone(); }).catch(() => markReviewDone());
+      offReview = sb.onReviewReady((r) => { if (r.status !== 'pending') markReviewDone(); });
+    }
+    const cap = setTimeout(markReviewDone, SYNTH_CAP_MS);
+
     const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-    const dismiss = () => { setFading(true); setTimeout(() => setShow(false), 560); };
-    if (reduce) { setTitle(TITLE); setReady(true); const t = setTimeout(dismiss, 500); return () => clearTimeout(t); }
+    if (reduce) {
+      setTitle(TITLE); setReady(true); setDone(NODES.length);
+      const t = setTimeout(markBaseDone, 500);
+      return () => { clearTimeout(t); clearTimeout(cap); offReview?.(); };
+    }
 
     const timers: ReturnType<typeof setTimeout>[] = [];
     NODES.forEach((_, i) => timers.push(setTimeout(() => setDone(i + 1), 230 * (i + 1))));
@@ -50,7 +90,8 @@ export default function BootSplash() {
     const hex = setInterval(() => setAddr('0x' + Math.floor(Math.random() * 0xffffff).toString(16).toUpperCase().padStart(6, '0')), 90);
 
     timers.push(setTimeout(() => { accel.current = true; setReady(true); }, bootMs + 360));
-    timers.push(setTimeout(dismiss, bootMs + 1500));
+    // Base animation complete — now the briefing gate decides when we open.
+    timers.push(setTimeout(markBaseDone, bootMs + 900));
 
     // diving glyph-rain field
     const cv = canvas.current!;
@@ -83,24 +124,29 @@ export default function BootSplash() {
 
     return () => {
       timers.forEach(clearTimeout); clearInterval(decrypt); clearInterval(hex);
+      clearTimeout(cap); offReview?.();
       cancelAnimationFrame(raf); window.removeEventListener('resize', resize);
     };
   }, []);
 
   if (!show) return null;
 
+  // Once the nodes are mounted but the briefing isn't ready yet, the HUD shifts
+  // to a "synthesizing" readout so the hold reads as intent, not a stall.
+  const skip = () => { reviewDone.current = true; baseDone.current = true; setSynth(false); setFading(true); setTimeout(() => setShow(false), 560); };
+
   return (
-    <div className={`boot${fading ? ' out' : ''}`} aria-hidden>
+    <div className={`boot${fading ? ' out' : ''}`} aria-hidden onClick={synth ? skip : undefined}>
       <canvas ref={canvas} className="boot-cv" />
       <div className="boot-scan" />
       <div className="boot-vig" />
 
       <div className="boot-hud th">SYS_BRUT // SB-00 · CORTEX_LINK</div>
       <div className="boot-hud tr">{ready ? 'SYS_ACTIVE' : 'SYS_STANDBY'} · {addr}</div>
-      <div className="boot-hud bl">MOUNTING NODES · {done}/{NODES.length}</div>
-      <div className="boot-hud br">{ready ? 'MOUNT_OK' : 'INJECTING…'}</div>
+      <div className="boot-hud bl">{synth ? 'SB-Σ // COMPILING BRIEFING' : `MOUNTING NODES · ${done}/${NODES.length}`}</div>
+      <div className="boot-hud br">{synth ? 'STAND BY' : ready ? 'MOUNT_OK' : 'INJECTING…'}</div>
 
-      <div className="boot-reticle"><span /><span /><i /></div>
+      <div className={`boot-reticle${synth ? ' synth' : ''}`}><span /><span /><i /></div>
 
       <ul className="boot-nodes">
         {NODES.map((n, i) => (
@@ -114,8 +160,13 @@ export default function BootSplash() {
 
       <div className="boot-center">
         <div className="boot-title">{title}</div>
-        <div className="boot-sub">{ready ? 'INITIALIZATION SEQUENCE COMPLETE' : 'DECRYPTING BIOMETRIC CORE'}</div>
-        <div className="boot-bar"><i style={{ width: `${Math.round((done / NODES.length) * 100)}%` }} /></div>
+        <div className="boot-sub">
+          {synth ? 'SB-Σ · SYNTHESIZING LAUNCH BRIEFING' : ready ? 'INITIALIZATION SEQUENCE COMPLETE' : 'DECRYPTING BIOMETRIC CORE'}
+        </div>
+        <div className={`boot-bar${synth ? ' indet' : ''}`}>
+          <i style={synth ? undefined : { width: `${Math.round((done / NODES.length) * 100)}%` }} />
+        </div>
+        {synth && <div className="boot-skip">CLICK TO SKIP</div>}
       </div>
 
       <style>{`
@@ -134,10 +185,13 @@ export default function BootSplash() {
         .boot-hud.th { top: 22px; left: 24px; } .boot-hud.tr { top: 22px; right: 24px; }
         .boot-hud.bl { bottom: 22px; left: 24px; } .boot-hud.br { bottom: 22px; right: 24px; color: var(--ink); }
         .boot-reticle { position: absolute; top: 50%; left: 50%; width: 320px; height: 320px;
-          transform: translate(-50%,-50%); opacity: .25; }
+          transform: translate(-50%,-50%); opacity: .25; transition: opacity .5s ease; }
+        .boot-reticle.synth { opacity: .4; }
         .boot-reticle span { position: absolute; inset: 0; border: 1px solid rgba(236,238,240,.4); border-radius: 50%;
           animation: spin 16s linear infinite; }
+        .boot-reticle.synth span { animation-duration: 5s; }
         .boot-reticle span:nth-child(2) { inset: 46px; border-style: dashed; animation-direction: reverse; animation-duration: 24s; }
+        .boot-reticle.synth span:nth-child(2) { animation-duration: 8s; }
         .boot-reticle i { position: absolute; top: 50%; left: 50%; width: 1px; height: 360px; background: rgba(236,238,240,.18);
           transform: translate(-50%,-50%); box-shadow: 0 0 0 0 transparent; }
         .boot-reticle i::after { content: ''; position: absolute; top: 50%; left: 50%; width: 360px; height: 1px;
@@ -155,10 +209,20 @@ export default function BootSplash() {
         .boot-title { font-family: var(--font-cap); font-weight: 700; font-size: 38px; letter-spacing: .12em;
           color: #fff; line-height: 1; text-shadow: 0 0 18px rgba(236,238,240,.18); }
         .boot-sub { font-family: var(--font-mono); font-size: 8px; letter-spacing: .42em; text-transform: uppercase;
-          color: var(--d); margin-top: 12px; }
-        .boot-bar { width: 240px; height: 1px; margin: 16px auto 0; background: rgba(236,238,240,.14); }
+          color: var(--d); margin-top: 12px; transition: color .4s ease; }
+        .boot-bar { width: 240px; height: 1px; margin: 16px auto 0; background: rgba(236,238,240,.14); overflow: hidden; }
         .boot-bar i { display: block; height: 100%; background: var(--ink); transition: width .3s ease;
           box-shadow: 0 0 8px rgba(236,238,240,.6); }
+        /* synthesizing: the bar sweeps as an indeterminate scanner */
+        .boot-bar.indet i { width: 38%; animation: sweep 1.15s cubic-bezier(.5,0,.5,1) infinite; }
+        @keyframes sweep { 0% { transform: translateX(-110%); } 100% { transform: translateX(370%); } }
+        .boot-skip { font-family: var(--font-mono); font-size: 7.5px; letter-spacing: .4em; text-transform: uppercase;
+          color: var(--d); margin-top: 14px; opacity: .55; animation: skippulse 2.4s ease-in-out infinite; }
+        @keyframes skippulse { 0%,100% { opacity: .25; } 50% { opacity: .7; } }
+        @media (prefers-reduced-motion: reduce) {
+          .boot-bar.indet i { animation: none; width: 100%; }
+          .boot-skip { animation: none; }
+        }
       `}</style>
     </div>
   );
