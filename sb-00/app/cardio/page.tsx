@@ -45,7 +45,7 @@ export default function Cardio() {
 
   return (
     <div className="page">
-      <HubFrame foot={<span>Next long run — due 06.20</span>}>
+      <HubFrame foot={<span>Longest {cardioGoal.longest}{cardioGoal.unit} · goal {cardioGoal.target}{cardioGoal.unit}</span>}>
         <p className="synced-note">Synced from <span className="flag">Strava</span> — runs, rides and swims import automatically. Link it on Connections; no manual entry here.</p>
 
         <div className="block">
