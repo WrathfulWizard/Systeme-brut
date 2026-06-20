@@ -140,9 +140,12 @@ export function applyHealthExport(body: HAEBody, source = 'apple_health'): Apply
           res.sleep++;
         }
       } else if (WEIGHT_NAMES.has(n)) {
-        // Bodyweight from Cronometer/scale → drives the Substrate weight trend.
-        for (const p of m.data) { const v = val(p); if (v == null) continue;
-          upWear.run({ at: iso(p.date), metric: 'body_mass', value: v, unit: m.units ?? 'kg', src: source });
+        // Bodyweight from Cronometer/scale → drives the Substrate weight trend,
+        // which is kg throughout — convert if the export reports pounds.
+        const toKg = /lb|pound/i.test(m.units ?? '') ? 0.453592 : 1;
+        for (const p of m.data) { const v0 = val(p); if (v0 == null) continue;
+          const v = Math.round(v0 * toKg * 100) / 100;
+          upWear.run({ at: iso(p.date), metric: 'body_mass', value: v, unit: 'kg', src: source });
           upBody.run({ d: day(p.date), w: v });
           res.wearables++;
         }

@@ -328,7 +328,22 @@ console.log('✓ protocol + titration  (test 14→16, deca 7→10) · flags reso
   assert.ok(s.minerals.find((m) => m.mineral === 'Iron'), 'expanded minerals imported (Iron)');
   assert.ok(s.weightGoal.trend.some((w) => w.kg === 89.2), 'cronometer weight column feeds the mass trend');
   assert.ok(Array.isArray(s.caloriesByWeek), 'weekly calorie averages available for 4w/8w/12w views');
-  console.log('✓ substrate body+micros (bf%/measurements · omega-3 + vitamins/minerals · cronometer weight · weekly cals)');
+
+  // Multi-source dedup: same day from BOTH Cronometer paths must collapse to one
+  // row per day/nutrient (not duplicate in calories or the micro readout).
+  const { applyHealthExport: applyAH } = require('../dist-electron/desktop/ingest/appleHealth.js');
+  cron.importCronometerCsv([
+    'Date,Energy (kcal),Vitamin C (mg)', '2026-06-22,2500,120',
+  ].join('\n'));
+  applyAH({ data: { metrics: [
+    { name: 'dietary_energy', units: 'kcal', data: [{ date: '2026-06-22 23:00:00 +0000', qty: 2480 }] },
+    { name: 'vitamin_c', units: 'mg', data: [{ date: '2026-06-22 23:00:00 +0000', qty: 115 }] },
+  ] } });
+  s = getSnapshot();
+  const vitCRows = s.vitamins.filter((v) => v.nutrient === 'Vitamin C');
+  assert.equal(vitCRows.length, 1, 'dual-source day yields ONE Vitamin C row, not two');
+  assert.ok(s.calories7d.length <= 7, 'calories7d never exceeds 7 days even with dual sources');
+  console.log('✓ substrate body+micros (bf%/measurements · omega-3 + vitamins/minerals · cronometer weight · multi-source dedup)');
 }
 
 // --- sweep: SB-Σ raises persistent flags, de-duplicated ---
