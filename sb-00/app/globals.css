@@ -234,10 +234,31 @@ tr.prrow td:last-child { font-weight: 700; color: var(--text); }
 .pagehead h1 { font-size: clamp(26px, 4vw, 38px); font-weight: 700; letter-spacing: -0.01em; margin: 8px 0; }
 .pagehead p { max-width: 640px; color: var(--dim); font-size: 13.5px; line-height: 1.6; margin: 0; }
 
+/* ---- responsive: keep the hub usable from ~700px up ---------------------- */
+/* First the supplementary side feed drops below the main column … */
+@media (max-width: 1180px) {
+  .hub-body { grid-template-columns: 170px 1fr; }
+  .side { grid-column: 1 / -1; border-left: none; padding-left: 0;
+    margin-top: 14px; border-top: 1px solid var(--line-soft); padding-top: 14px; }
+}
+/* … then the nav collapses and everything stacks in one column. */
 @media (max-width: 980px) {
   .hub-body, .hub-body.no-side { grid-template-columns: 1fr; }
   .nav { display: none; }
   .side { border-left: none; padding-left: 0; }
+  /* Flow the HUD corners inline so they never overlap the body on a narrow window. */
+  .cnr { position: static; text-align: left; display: inline-block; margin: 0 16px 6px 0; }
+  .hub.frame { padding-bottom: 20px; }
+}
+/* Tight windows: trim padding, let wide tables scroll instead of overflowing,
+   and stop the corner readouts from colliding with the body. */
+@media (max-width: 760px) {
+  .page { padding: 18px 12px 80px; }
+  .hub.frame { padding: 14px 12px 28px; }
+  table { display: block; overflow-x: auto; white-space: nowrap; }
+  .pagehead h1 { font-size: 24px; }
+  .cnr { font-size: 8px; }
+  .id-row { font-size: 10px; }
 }
 
 /* ---- log forms (manual entry: Training, Pharmacology) -------------------- */

@@ -1,2 +1,2 @@
 /** Build identity shown in the ↙ corner. Bump on each shipped feature set. */
-export const APP_VERSION = 'v0.11.0';
+export const APP_VERSION = 'v0.12.0';

@@ -15,3 +15,12 @@ for (const f of readdirSync(srcDir)) {
     console.log('copied', f);
   }
 }
+
+// App + tray icons into the compiled output (used for the window + tray icon).
+const assetSrc = join(here, 'assets');
+const assetOut = join(here, '..', 'dist-electron', 'desktop', 'assets');
+mkdirSync(assetOut, { recursive: true });
+for (const f of readdirSync(assetSrc)) {
+  copyFileSync(join(assetSrc, f), join(assetOut, f));
+  console.log('copied', f);
+}
