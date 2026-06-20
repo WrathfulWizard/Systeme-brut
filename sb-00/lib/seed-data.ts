@@ -78,9 +78,10 @@ export const seedSnapshot: Snapshot = {
     { date: '05.01', distance: 86 }, { date: '06.01', distance: 71 },
   ],
   cardioHealth: {
-    vo2max: 52.4, restingHr: 48, hrv: 78,
+    vo2max: 52.4, restingHr: 48, hrv: 78, heartRate: 61,
     vo2Trend: [{ date: '04.01', value: 49.8 }, { date: '05.01', value: 51.1 }, { date: '06.01', value: 52.4 }],
     rhrTrend: [{ date: '04.01', value: 52 }, { date: '05.01', value: 50 }, { date: '06.01', value: 48 }],
+    hrTrend: [{ date: '04.01', value: 64 }, { date: '05.01', value: 62 }, { date: '06.01', value: 61 }],
   },
   gear: [
     { id: 1, name: 'Nike Vaporfly 3', kind: 'shoe', km: 214.6, retired: false, source: 'strava' },

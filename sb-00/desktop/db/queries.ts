@@ -168,8 +168,10 @@ export function getSnapshot(): Snapshot {
     vo2max: wearLatest('vo2_max'),
     restingHr: wearLatest('resting_heart_rate'),
     hrv: wearLatest('hrv'),
+    heartRate: wearLatest('heart_rate'),
     vo2Trend: wearTrend('vo2_max'),
     rhrTrend: wearTrend('resting_heart_rate'),
+    hrTrend: wearTrend('heart_rate'),
   };
 
   // Running shoes / bikes + mileage. Strava reports cumulative metres on the gear
