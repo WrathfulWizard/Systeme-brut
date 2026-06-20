@@ -13,6 +13,10 @@ export default function Flags() {
   const single = (node: NodeGroup) => insights.filter((i) => !isCrossNode(i) && i.nodes.includes(node));
   const flagCount = insights.filter((i) => i.severity === 'flag').length;
   const resolve = isDesktop ? resolveInsight : undefined;
+  // Catch-all: a flag the agent left untagged (no recognized node) would
+  // otherwise count toward the total but appear in no section — surface it.
+  const GROUPS: NodeGroup[] = ['training', 'pharmacology', 'nutrition'];
+  const unfiled = insights.filter((i) => !isCrossNode(i) && !i.nodes.some((n) => GROUPS.includes(n)));
 
   return (
     <div className="page">
@@ -25,6 +29,7 @@ export default function Flags() {
         <FeedSection title="Lifting & Cardio" items={single('training')} onResolve={resolve} />
         <FeedSection title="Pharmacology" items={single('pharmacology')} onResolve={resolve} />
         <FeedSection title="Substrate" items={single('nutrition')} onResolve={resolve} />
+        {unfiled.length > 0 && <FeedSection title="Unfiled" items={unfiled} onResolve={resolve} />}
       </HubFrame>
     </div>
   );
