@@ -19,7 +19,21 @@ export default function Sigma() {
   const [streaming, setStreaming] = useState(false);
   const [sweeping, setSweeping] = useState(false);
   const [sweepNote, setSweepNote] = useState('');
+  const [briefing, setBriefing] = useState(false);   // first message is the launch briefing
   const chatRef = useRef<HTMLDivElement>(null);
+
+  // The launch briefing SB-Σ prepared while the app booted — seed it as the
+  // opening message so a full review is waiting the moment the hub appears.
+  useEffect(() => {
+    if (!window.sb) return;
+    const seed = (text?: string) => {
+      if (!text) return;
+      setMessages((m) => { if (m.length) return m; setBriefing(true); return [{ role: 'assistant', content: text }]; });
+    };
+    window.sb.getStartupReview().then((r) => { if (r.status === 'ready') seed(r.text); }).catch(() => {});
+    const off = window.sb.onReviewReady((r) => { if (r.status === 'ready') seed(r.text); });
+    return off;
+  }, []);
 
   useEffect(() => {
     if (!window.sb) return;
@@ -103,11 +117,14 @@ export default function Sigma() {
                       {STARTERS.map((s) => <button key={s} className="btn" onClick={() => send(s)}>{s}</button>)}
                     </div>
                   </div>
-                ) : messages.map((m, i) => (
-                  <div key={i} className={`msg ${m.role === 'user' ? 'user' : 'sigma'}${streaming && i === messages.length - 1 && m.role === 'assistant' ? ' streaming' : ''}`}>
-                    <span className="who">{m.role === 'user' ? 'You' : 'SB-Σ'}</span>{m.content}
-                  </div>
-                ))}
+                ) : messages.map((m, i) => {
+                  const isBriefing = briefing && i === 0 && m.role === 'assistant';
+                  return (
+                    <div key={i} className={`msg ${m.role === 'user' ? 'user' : 'sigma'}${isBriefing ? ' briefing' : ''}${streaming && i === messages.length - 1 && m.role === 'assistant' ? ' streaming' : ''}`}>
+                      <span className="who">{m.role === 'user' ? 'You' : isBriefing ? 'SB-Σ // Launch briefing' : 'SB-Σ'}</span>{m.content}
+                    </div>
+                  );
+                })}
               </div>
 
               <div className="composer">

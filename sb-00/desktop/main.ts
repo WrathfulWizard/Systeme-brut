@@ -15,6 +15,7 @@ import {
   addBodyMetric, deleteBodyMetric, setWeightGoal,
 } from './db/mutations';
 import { agentStatus, setAgentModel, agentChat, agentReview, agentSweep, type StreamHandlers } from './agent/ollama';
+import { runStartupReview, startupReview, onStartupReview } from './agent/startup-review';
 import { ensureOllamaRunning, pullDefaultIfEmpty } from './agent/launch';
 import type { LiftInput, AdminInput, TitrationInput, LabPanelInput, ProtocolInput, ChatMessage, BodyMetricInput } from '../lib/types';
 import { initSecrets, setCronometer, setCronometerSession, setStravaApp, ensureHealthToken } from './ingest/secrets';
@@ -158,6 +159,7 @@ function registerIpc() {
   ipcMain.handle('sb:agentChat', (_e, messages: ChatMessage[]) => { void agentChat(messages, streamHandlers()); });
   ipcMain.handle('sb:agentReview', () => { void agentReview(streamHandlers()); });
   ipcMain.handle('sb:agentSweep', () => agentSweep());
+  ipcMain.handle('sb:getStartupReview', () => startupReview());
 }
 
 async function createWindow() {
@@ -184,16 +186,22 @@ app.whenReady().then(() => {
   ensureHealthToken(() => randomBytes(24).toString('hex')); // gate the receiver
   registerCronometerSessionSync(cronometerSessionSync);
   registerIpc();
+  // Push the launch briefing to the renderer the moment it resolves — the boot
+  // splash holds open until this fires (or it times out client-side).
+  onStartupReview((r) => win?.webContents.send('sb:reviewReady', r));
   startIngestion((m) => win?.webContents.send('sb:syncUpdate', m));
   // Keep the local model alive without a separate terminal. If Ollama is up but
   // empty, pull the default small model automatically — all fire-and-forget so
-  // the window never waits on it. Events are forwarded to the renderer.
+  // the window never waits on it. Once we know Ollama's state, kick the startup
+  // briefing so a full review is waiting when the boot sequence completes.
   void ensureOllamaRunning((m) => console.log('[ollama]', m)).then((up) => {
-    if (!up) return;
-    void pullDefaultIfEmpty(
-      (s) => win?.webContents.send('sb:modelPull', s),
-      (m) => console.log('[pull]', m),
-    );
+    if (up) {
+      void pullDefaultIfEmpty(
+        (s) => win?.webContents.send('sb:modelPull', s),
+        (m) => console.log('[pull]', m),
+      );
+    }
+    void runStartupReview(up);
   });
   createWindow();
 

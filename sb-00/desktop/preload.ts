@@ -49,6 +49,12 @@ const bridge: SbBridge = {
   agentChat: (messages: ChatMessage[]) => ipcRenderer.invoke('sb:agentChat', messages),
   agentReview: () => ipcRenderer.invoke('sb:agentReview'),
   agentSweep: () => ipcRenderer.invoke('sb:agentSweep'),
+  getStartupReview: () => ipcRenderer.invoke('sb:getStartupReview'),
+  onReviewReady: (cb: (r: import('../lib/types').StartupReview) => void) => {
+    const l = (_e: unknown, r: import('../lib/types').StartupReview) => cb(r);
+    ipcRenderer.on('sb:reviewReady', l);
+    return () => ipcRenderer.removeListener('sb:reviewReady', l);
+  },
   onAgentToken: (cb: (chunk: string) => void) => {
     const l = (_e: unknown, chunk: string) => cb(chunk);
     ipcRenderer.on('sb:agentToken', l);

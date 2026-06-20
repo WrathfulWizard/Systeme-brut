@@ -176,3 +176,40 @@ export function agentReview(h: StreamHandlers): Promise<void> {
     h,
   );
 }
+
+const STARTUP_BRIEF_PROMPT = `Give me a full operational briefing on my current state — this is the launch review I read first thing.
+Open with a single one-line VERDICT (overall status in a few words). Then cover, in order:
+· TRAINING — lifting progression + cardio, the one thing that matters most.
+· PHARMACOLOGY — protocol justified by labs and serum, or not.
+· SUBSTRATE — body composition + nutrition direction.
+For each node: one sharp observation tied to my actual numbers, then one concrete directive. Terse, no filler, no pleasantries.`;
+
+/**
+ * Produce the launch briefing as a single blocking call (no streaming) — used
+ * at startup so the full text is ready before the hub opens. Throws on failure;
+ * the caller decides how to degrade.
+ */
+export async function generateReviewText(): Promise<string> {
+  const { url, model } = cfg();
+  if (!model) throw new Error('No local model selected.');
+  const res = await fetch(`${url}/api/chat`, {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      model, stream: false,
+      messages: [
+        { role: 'system', content: SYSTEM_PROMPT },
+        { role: 'system', content: `CURRENT HUB STATE:\n${buildContext()}` },
+        { role: 'user', content: STARTUP_BRIEF_PROMPT },
+      ],
+    }),
+  });
+  if (!res.ok) {
+    const detail = await res.text().catch(() => '');
+    const parsed = detail && (() => { try { return JSON.parse(detail).error as string; } catch { return ''; } })();
+    throw new Error(`Ollama review failed (${res.status})${parsed || detail ? ` — ${parsed || detail.slice(0, 200)}` : ''}`);
+  }
+  const j = (await res.json()) as { message?: { content?: string } };
+  const text = (j.message?.content ?? '').trim();
+  if (!text) throw new Error('Empty review');
+  return text;
+}
