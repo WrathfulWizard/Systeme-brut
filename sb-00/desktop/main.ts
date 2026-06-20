@@ -194,14 +194,21 @@ app.whenReady().then(() => {
   // empty, pull the default small model automatically — all fire-and-forget so
   // the window never waits on it. Once we know Ollama's state, kick the startup
   // briefing so a full review is waiting when the boot sequence completes.
-  void ensureOllamaRunning((m) => console.log('[ollama]', m)).then((up) => {
+  void ensureOllamaRunning((m) => console.log('[ollama]', m)).then(async (up) => {
     if (up) {
       void pullDefaultIfEmpty(
         (s) => win?.webContents.send('sb:modelPull', s),
         (m) => console.log('[pull]', m),
       );
     }
-    void runStartupReview(up);
+    await runStartupReview(up);
+    // Vigilance: once the briefing is in, audit every node for flags and push a
+    // refresh so anything raised surfaces immediately (model stays warm via
+    // keep_alive, so this is cheap right after the review).
+    if (up) {
+      try { const r = await agentSweep(); if (r.created > 0) win?.webContents.send('sb:syncUpdate', meta()); }
+      catch { /* sweep is best-effort */ }
+    }
   });
   createWindow();
 

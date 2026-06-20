@@ -1,10 +1,10 @@
 'use client';
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import type {
   Snapshot, SyncMeta, SourceId, ConnectionState, SbBridge,
   LiftInput, AdminInput, TitrationInput, LabPanelInput, ProtocolInput, AgentStatus, SweepResult,
-  ModelPullStatus, BodyMetricInput,
+  ModelPullStatus, BodyMetricInput, ChatMessage,
 } from '@/lib/types';
 import { seedSnapshot } from '@/lib/seed-data';
 
@@ -49,6 +49,13 @@ interface Ctx {
   setAgentModel: (model: string) => Promise<void>;
   sweep: () => Promise<SweepResult>;
   modelPull: ModelPullStatus | null;
+  /* SB-Σ conversation — held here (not in the page) so it survives navigation */
+  chat: ChatMessage[];
+  chatStreaming: boolean;
+  briefingActive: boolean;      // the first message is the launch briefing
+  sendChat: (text: string) => Promise<void>;
+  reviewChat: () => Promise<void>;
+  resetChat: () => void;
 }
 
 const SbContext = createContext<Ctx | null>(null);
@@ -59,6 +66,14 @@ export function Providers({ children }: { children: React.ReactNode }) {
   const [agent, setAgent] = useState<AgentStatus | null>(null);
   const [modelPull, setModelPull] = useState<ModelPullStatus | null>(null);
   const isDesktop = typeof window !== 'undefined' && !!window.sb;
+
+  // SB-Σ conversation lives at the app level so navigating between nodes never
+  // wipes it. chatRef mirrors state so async IPC callbacks read the live value.
+  const [chat, setChat] = useState<ChatMessage[]>([]);
+  const [chatStreaming, setChatStreaming] = useState(false);
+  const [briefingActive, setBriefingActive] = useState(false);
+  const chatRef = useRef<ChatMessage[]>([]);
+  const writeChat = useCallback((next: ChatMessage[]) => { chatRef.current = next; setChat(next); }, []);
 
   const refresh = useCallback(async () => {
     if (!window.sb) return;
@@ -84,6 +99,43 @@ export function Providers({ children }: { children: React.ReactNode }) {
     });
     return () => { offSync(); offPull(); };
   }, [refresh, refreshAgent]);
+
+  // SB-Σ streaming + the launch briefing — wired once at the app level.
+  useEffect(() => {
+    if (!window.sb) return;
+    const offT = window.sb.onAgentToken((chunk) => {
+      const m = chatRef.current;
+      const last = m[m.length - 1];
+      writeChat(last?.role === 'assistant'
+        ? [...m.slice(0, -1), { ...last, content: last.content + chunk }]
+        : [...m, { role: 'assistant', content: chunk }]);
+    });
+    const offD = window.sb.onAgentDone(() => setChatStreaming(false));
+    const offE = window.sb.onAgentError((msg) => {
+      setChatStreaming(false);
+      const m = chatRef.current;
+      const last = m[m.length - 1];
+      const note = `⚠ ${msg}`;
+      writeChat(last?.role === 'assistant' && last.content === ''
+        ? [...m.slice(0, -1), { role: 'assistant', content: note }]
+        : [...m, { role: 'assistant', content: note }]);
+    });
+
+    // Launch briefing: subscribe FIRST, then fetch, so a review that resolves
+    // during setup is never missed. Seed only into an empty conversation.
+    let seeded = false;
+    const seed = (r: { status: string; text?: string }) => {
+      if (seeded || r.status !== 'ready' || !r.text || chatRef.current.length) return;
+      seeded = true;
+      setBriefingActive(true);
+      writeChat([{ role: 'assistant', content: r.text }]);
+      void refreshAgent();   // review-ready ⇒ agent is reachable; flip the UI gate
+    };
+    const offReview = window.sb.onReviewReady(seed);
+    window.sb.getStartupReview().then(seed).catch(() => {});
+
+    return () => { offT(); offD(); offE(); offReview(); };
+  }, [writeChat, refreshAgent]);
 
   const value = useMemo<Ctx>(() => ({
     snapshot, sync, isDesktop, refresh,
@@ -137,7 +189,23 @@ export function Providers({ children }: { children: React.ReactNode }) {
       await refresh();   // new flags land in the feed
       return r;
     },
-  }), [snapshot, sync, isDesktop, refresh, agent, refreshAgent, modelPull]);
+    chat, chatStreaming, briefingActive,
+    sendChat: async (text) => {
+      const t = text.trim();
+      if (!window.sb || !t || chatStreaming) return;
+      const history: ChatMessage[] = [...chatRef.current, { role: 'user', content: t }];
+      writeChat([...history, { role: 'assistant', content: '' }]);
+      setChatStreaming(true);
+      await window.sb.agentChat(history);
+    },
+    reviewChat: async () => {
+      if (!window.sb || chatStreaming) return;
+      writeChat([...chatRef.current, { role: 'assistant', content: '' }]);
+      setChatStreaming(true);
+      await window.sb.agentReview();
+    },
+    resetChat: () => { setBriefingActive(false); writeChat([]); },
+  }), [snapshot, sync, isDesktop, refresh, agent, refreshAgent, modelPull, chat, chatStreaming, briefingActive, writeChat]);
 
   return <SbContext.Provider value={value}>{children}</SbContext.Provider>;
 }
