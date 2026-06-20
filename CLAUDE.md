@@ -37,6 +37,11 @@ first.**
 `main` must always reflect the latest shipped version — after pushing feature
 work, merge it into `main` so the repo's default branch is never stale.
 
+**Bump the version on every feature change:** any commit that develops SB-00
+further must also bump `APP_VERSION` in `sb-00/lib/version.ts` (patch for fixes,
+minor for features). A `git commit` hook in `.claude/settings.json` reminds you
+when `sb-00/` is staged without a version bump.
+
 ## Coding stance (ponytail)
 
 Write only what's necessary. Before implementing, walk the ladder: (1) does this

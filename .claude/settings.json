@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "if": "Bash(git commit*)",
+            "command": "f=$(git diff --cached --name-only 2>/dev/null); if printf '%s\\n' \"$f\" | grep -q '^sb-00/' && ! printf '%s\\n' \"$f\" | grep -qx 'sb-00/lib/version.ts'; then printf '{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"additionalContext\":\"Version check: staged changes touch sb-00/ but sb-00/lib/version.ts is not bumped. If this commit develops the app further, bump APP_VERSION in sb-00/lib/version.ts before committing (CLAUDE.md repo hygiene).\"}}'; fi; true",
+            "statusMessage": "Checking version bump…"
+          }
+        ]
+      }
+    ]
+  }
+}
