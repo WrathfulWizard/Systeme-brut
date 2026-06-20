@@ -35,8 +35,19 @@ const mdy = (iso: string) => {
   if (Number.isNaN(d.getTime())) return iso;
   return `${String(d.getFullYear() % 100).padStart(2, '0')}.${md(iso)}`;
 };
-const weekday = (iso: string) =>
-  ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'][new Date(iso).getDay()];
+const weekday = (iso: string) => {
+  // Parse a date-only string as LOCAL midnight — new Date('YYYY-MM-DD') is UTC
+  // and shifts the weekday a day for anyone west of UTC.
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
+  const d = m ? new Date(+m[1], +m[2] - 1, +m[3]) : new Date(iso);
+  return ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'][d.getDay()];
+};
+
+// One row per day/nutrient when a user runs both Cronometer paths (the direct
+// scrape/CSV and the Apple Health bridge both write the same day under different
+// `source` values). Prefer the direct export (most complete — Apple Health drops
+// omega-3/6), then the Apple Health bridge, then anything else.
+const SRC_PRIO = "CASE source WHEN 'cronometer_direct' THEN 0 WHEN 'cronometer_via_apple_health' THEN 1 WHEN 'manual' THEN 2 ELSE 3 END";
 const hm = (iso: string) => {
   const d = new Date(iso);
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
@@ -329,7 +340,8 @@ export function getSnapshot(): Snapshot {
   // nutrition
   const latestDay = (db.prepare('SELECT MAX(logged_on) AS d FROM nutrition_logs').get() as { d: string }).d;
   const totalsRow = db.prepare(
-    'SELECT calories_kcal AS kcal, protein_g AS p, carbs_g AS c, fat_g AS f, fiber_g AS fb FROM nutrition_logs WHERE logged_on = ? AND meal IS NULL LIMIT 1',
+    `SELECT calories_kcal AS kcal, protein_g AS p, carbs_g AS c, fat_g AS f, fiber_g AS fb
+     FROM nutrition_logs WHERE logged_on = ? AND meal IS NULL ORDER BY ${SRC_PRIO} LIMIT 1`,
   ).get(latestDay) as { kcal: number; p: number; c: number; f: number; fb: number } | undefined;
   const TARGET = { kcal: 2900, p: 200, c: 320, f: 90, fb: 30 };
   const d = (v: number, t: number) => (v - t >= 0 ? `+${Math.round(v - t)}` : `−${Math.round(t - v)}`);
@@ -341,15 +353,25 @@ export function getSnapshot(): Snapshot {
     { nutrient: 'Fiber', today: `${Math.round(totalsRow.fb)}g`, target: `${TARGET.fb}g`, delta: d(totalsRow.fb, TARGET.fb) },
   ] : [];
 
-  const calories7d = (db.prepare(
-    'SELECT logged_on AS day, calories_kcal AS kcal FROM nutrition_logs WHERE meal IS NULL ORDER BY logged_on DESC LIMIT 7',
-  ).all() as { day: string; kcal: number }[]).reverse().map((r) => ({ day: weekday(r.day), kcal: Math.round(r.kcal) }));
+  const calories7d = (db.prepare(`
+    SELECT day, kcal FROM (
+      SELECT logged_on AS day, calories_kcal AS kcal,
+        ROW_NUMBER() OVER (PARTITION BY logged_on ORDER BY ${SRC_PRIO}) AS rn
+      FROM nutrition_logs WHERE meal IS NULL
+    ) WHERE rn = 1 ORDER BY day DESC LIMIT 7
+  `).all() as { day: string; kcal: number }[]).reverse().map((r) => ({ day: weekday(r.day), kcal: Math.round(r.kcal) }));
 
   // Weekly calorie averages for the 4w / 8w / 12w views (oldest→newest, last 12).
+  // Collapse multi-source days to one row BEFORE averaging, or duplicated days
+  // would double-weight the weekly mean.
   const caloriesByWeek = (db.prepare(`
+    WITH daily AS (
+      SELECT logged_on, calories_kcal,
+        ROW_NUMBER() OVER (PARTITION BY logged_on ORDER BY ${SRC_PRIO}) AS rn
+      FROM nutrition_logs WHERE meal IS NULL AND calories_kcal IS NOT NULL
+    )
     SELECT strftime('%Y-%W', logged_on) AS wk, MIN(logged_on) AS first_day, AVG(calories_kcal) AS kcal
-    FROM nutrition_logs WHERE meal IS NULL AND calories_kcal IS NOT NULL
-    GROUP BY wk ORDER BY first_day DESC LIMIT 12
+    FROM daily WHERE rn = 1 GROUP BY wk ORDER BY first_day DESC LIMIT 12
   `).all() as { wk: string; first_day: string; kcal: number }[])
     .reverse().map((r) => ({ day: md(r.first_day), kcal: Math.round(r.kcal) }));
 
@@ -365,9 +387,13 @@ export function getSnapshot(): Snapshot {
       chestCm: r.ch ?? undefined, armCm: r.ar ?? undefined, thighCm: r.th ?? undefined, waistCm: r.wa ?? undefined,
     }));
 
-  const micros = db.prepare(
-    'SELECT nutrient, kind, amount, unit, target_amount AS tgt, rda_pct AS rda FROM micronutrients WHERE logged_on = (SELECT MAX(logged_on) FROM micronutrients) ORDER BY id',
-  ).all() as { nutrient: string; kind: string; amount: number; unit: string; tgt: number; rda: number }[];
+  const micros = db.prepare(`
+    SELECT nutrient, kind, amount, unit, tgt, rda FROM (
+      SELECT nutrient, kind, amount, unit, target_amount AS tgt, rda_pct AS rda, id,
+        ROW_NUMBER() OVER (PARTITION BY nutrient ORDER BY ${SRC_PRIO}) AS rn
+      FROM micronutrients WHERE logged_on = (SELECT MAX(logged_on) FROM micronutrients)
+    ) WHERE rn = 1 ORDER BY id
+  `).all() as { nutrient: string; kind: string; amount: number; unit: string; tgt: number; rda: number }[];
   const vitamins = micros.filter((m) => m.kind === 'vitamin').map((m) => ({
     nutrient: m.nutrient, amount: `${m.amount} ${m.unit}`, rda: m.rda != null ? `${Math.round(m.rda)}%` : '—',
     flagged: m.rda != null && m.rda < 50,
