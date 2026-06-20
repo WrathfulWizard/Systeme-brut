@@ -9,6 +9,7 @@ import { lookup } from '../pharma/compounds';
 import { protocolSerum, discreteSerum } from '../pharma/serum';
 import type {
   Snapshot, Insight, NodeGroup, SyncMeta, ConnectionState, SourceId, SourceStatus, SerumCompound, SetKind,
+  HeartRatePoint, ProgressPeriod,
 } from '../../lib/types';
 
 /** Normalize stored set kinds (incl. legacy rp1/rp_burst) to the current set. */
@@ -174,6 +175,73 @@ export function getSnapshot(): Snapshot {
     hrTrend: wearTrend('heart_rate'),
   };
 
+  // Heart-rate command readout: live + resting now, an hour-resolution last day,
+  // and avg/min/max series bucketed per W/M/3M/6M/Y. Daily aggregates are anchored
+  // on the latest *recorded* reading (not wall-clock), so the readout stays useful
+  // even if the machine was off — gaps collapse instead of blanking the chart.
+  const hrDaily = db.prepare(`
+    SELECT date(measured_at) AS d, AVG(value) AS avg, MIN(value) AS min, MAX(value) AS max
+    FROM wearable_readings WHERE metric='heart_rate'
+    GROUP BY date(measured_at) ORDER BY d
+  `).all() as { d: string; avg: number; min: number; max: number }[];
+  const hrLatest = db.prepare(
+    "SELECT measured_at AS at FROM wearable_readings WHERE metric='heart_rate' ORDER BY measured_at DESC LIMIT 1",
+  ).get() as { at: string } | undefined;
+
+  const hrAvg = (rows: { avg: number; min: number; max: number }[], label: string): HeartRatePoint => ({
+    label,
+    value: Math.round(rows.reduce((s, r) => s + r.avg, 0) / rows.length),
+    min: Math.round(Math.min(...rows.map((r) => r.min))),
+    max: Math.round(Math.max(...rows.map((r) => r.max))),
+  });
+  // last `days` recorded days, optionally chunked into fixed-size buckets
+  const hrSeries = (days: number, chunk: number): HeartRatePoint[] => {
+    const recent = hrDaily.slice(-days);
+    if (!recent.length) return [];
+    if (chunk <= 1) return recent.map((r) => hrAvg([r], md(r.d)));
+    const out: HeartRatePoint[] = [];
+    for (let i = 0; i < recent.length; i += chunk) {
+      const grp = recent.slice(i, i + chunk);
+      out.push(hrAvg(grp, md(grp[0].d)));
+    }
+    return out;
+  };
+
+  const hourly: HeartRatePoint[] = [];
+  if (hrLatest) {
+    const rows = db.prepare(`
+      SELECT measured_at AS at, value FROM wearable_readings
+      WHERE metric='heart_rate' AND datetime(measured_at) > datetime(?, '-26 hours')
+      ORDER BY measured_at
+    `).all(hrLatest.at) as { at: string; value: number }[];
+    const buckets = new Map<string, { sum: number; n: number; min: number; max: number; hour: number }>();
+    for (const r of rows) {
+      const d = new Date(r.at);
+      const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}-${d.getHours()}`;
+      const b = buckets.get(key);
+      if (b) { b.sum += r.value; b.n++; b.min = Math.min(b.min, r.value); b.max = Math.max(b.max, r.value); }
+      else buckets.set(key, { sum: r.value, n: 1, min: r.value, max: r.value, hour: d.getHours() });
+    }
+    for (const b of buckets.values()) {
+      hourly.push({ label: `${String(b.hour).padStart(2, '0')}:00`, value: Math.round(b.sum / b.n), min: Math.round(b.min), max: Math.round(b.max) });
+    }
+    if (hourly.length > 24) hourly.splice(0, hourly.length - 24);
+  }
+
+  const heartRate = {
+    current: cardioHealth.heartRate,
+    resting: cardioHealth.restingHr,
+    updatedAt: hrLatest?.at,
+    hourly,
+    ranges: {
+      W: hrSeries(7, 1),
+      M: hrSeries(30, 1),
+      '3M': hrSeries(90, 7),
+      '6M': hrSeries(180, 14),
+      Y: hrSeries(365, 30),
+    } as Record<ProgressPeriod, HeartRatePoint[]>,
+  };
+
   // Running shoes / bikes + mileage. Strava reports cumulative metres on the gear
   // itself; fall back to summing sessions tagged with this gear id.
   const gear = (db.prepare(`
@@ -324,7 +392,7 @@ export function getSnapshot(): Snapshot {
 
   return {
     insights, recentSets, prLog, tonnage, trainingStatus: computeTrainingStatus(), progress: computeProgress(),
-    cardioGoal, cardioProgression, recentRuns, cardioBySport, cardioWeekly, cardioMonthly, cardioHealth, gear,
+    cardioGoal, cardioProgression, recentRuns, cardioBySport, cardioWeekly, cardioMonthly, cardioHealth, heartRate, gear,
     protocols, administrations, titration, labResults, serum7d, serumByCompound,
     dailyTotals, calories7d, caloriesByWeek, vitamins, minerals, essentialFats, bodyComposition, weightGoal,
     session: { id: 'SB-00', clock: '03:14:09' },

@@ -57,6 +57,17 @@ export interface SerumCompound {
 }
 /** Progress table: one period's metrics vs the immediately preceding period. */
 export type ProgressPeriod = 'W' | 'M' | '3M' | '6M' | 'Y';
+
+/** One bar in a heart-rate chart — an average with an optional min/max band. */
+export interface HeartRatePoint { label: string; value: number; min?: number; max?: number }
+/** Heart-rate readout: live + resting now, an hour-resolution day, and W..Y series. */
+export interface HeartRateBlock {
+  current?: number;          // latest heart-rate reading (bpm)
+  resting?: number;          // latest resting heart rate (bpm)
+  updatedAt?: string;        // ISO of the latest reading, for "as of" labelling
+  hourly: HeartRatePoint[];  // most recent ~24h, one bar per hour (label "HH:00")
+  ranges: Record<ProgressPeriod, HeartRatePoint[]>;  // avg/min/max per bucket
+}
 export interface ProgressRow { metric: string; value: string; prev: string; delta: string; dir: 'up' | 'down' | 'flat'; upGood: boolean; }
 export interface TotalRow { nutrient: string; today: string; target: string; delta: string; }
 export interface CaloriePoint { day: string; kcal: number; }
@@ -98,6 +109,8 @@ export interface Snapshot {
     rhrTrend: { date: string; value: number }[];
     hrTrend: { date: string; value: number }[];
   };
+  /** heart-rate command readout — live, resting, hourly + W/M/3M/6M/Y series */
+  heartRate: HeartRateBlock;
   /** running shoes / bikes + accumulated mileage */
   gear: GearRow[];
   protocols: ProtocolRow[];
