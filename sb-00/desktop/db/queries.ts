@@ -9,7 +9,7 @@ import { lookup } from '../pharma/compounds';
 import { protocolSerum, discreteSerum } from '../pharma/serum';
 import type {
   Snapshot, Insight, NodeGroup, SyncMeta, ConnectionState, SourceId, SourceStatus, SerumCompound, SetKind,
-  HeartRatePoint, ProgressPeriod,
+  HeartRatePoint, ProgressPeriod, HeartRunRow, Sport,
 } from '../../lib/types';
 
 /** Normalize stored set kinds (incl. legacy rp1/rp_burst) to the current set. */
@@ -245,10 +245,60 @@ export function getSnapshot(): Snapshot {
     if (hourly.length > 24) hourly.splice(0, hourly.length - 24);
   }
 
+  // Resting HR per day — the cleanest cardio-fitness signal (a downward trend
+  // means the heart does the same work with fewer beats).
+  const restingByDay = new Map((db.prepare(
+    "SELECT date(measured_at) AS d, AVG(value) AS v FROM wearable_readings WHERE metric='resting_heart_rate' GROUP BY date(measured_at) ORDER BY d",
+  ).all() as { d: string; v: number }[]).map((r) => [r.d, r.v] as const));
+
+  // Improvement signal: change between the first and last reading in a ~30d
+  // window. Negative = HR dropped = fitness improving.
+  const deltaOver = (series: { v: number }[], days: number): number | undefined => {
+    const recent = series.slice(-days);
+    if (recent.length < 2) return undefined;
+    return Math.round((recent[recent.length - 1].v - recent[0].v) * 10) / 10;
+  };
+  const restingSeries = [...restingByDay.values()].map((v) => ({ v }));
+  const restingDelta = deltaOver(restingSeries, 30);
+  const avgDelta = deltaOver(hrDaily.map((r) => ({ v: r.avg })), 30);
+  const deltaWindowDays = Math.min(30, Math.max(restingSeries.length, hrDaily.length));
+
+  // Daily HR log — the last 14 recorded days, newest first, resting folded in.
+  const dailyLog = [...hrDaily].slice(-14).reverse().map((r) => ({
+    date: dLabel(r.d),
+    resting: restingByDay.has(r.d) ? Math.round(restingByDay.get(r.d)!) : undefined,
+    avg: Math.round(r.avg), min: Math.round(r.min), max: Math.round(r.max),
+  }));
+
+  // Running heart rate: cross-reference each recent session's time window against
+  // the HR samples taken during it (session times are local, so compare the HR
+  // timestamps converted to local time) to surface avg/max HR while moving.
+  const runHrStmt = db.prepare(`
+    SELECT AVG(value) AS avg, MAX(value) AS max, COUNT(*) AS n FROM wearable_readings
+    WHERE metric='heart_rate'
+      AND datetime(measured_at,'localtime') >= datetime(@at)
+      AND datetime(measured_at,'localtime') <= datetime(@at, '+' || @dur || ' seconds')
+  `);
+  const runs: HeartRunRow[] = (db.prepare(`
+    SELECT occurred_at AS at, sport, distance_km AS km, duration_sec AS dur
+    FROM cardio_sessions WHERE sport IN ('run','ride','swim') AND duration_sec > 0
+    ORDER BY occurred_at DESC LIMIT 8
+  `).all() as { at: string; sport: string; km: number; dur: number }[]).map((s) => {
+    const local = s.at.replace('Z', '').slice(0, 19);   // wall-clock, no tz suffix
+    const hr = runHrStmt.get({ at: local, dur: s.dur }) as { avg: number | null; max: number | null; n: number };
+    return {
+      date: mdy(s.at), sport: s.sport as Sport,
+      distance: `${(s.km ?? 0).toFixed(1)}km`, durationMin: Math.max(1, Math.round(s.dur / 60)),
+      avgHr: hr.n > 0 && hr.avg != null ? Math.round(hr.avg) : undefined,
+      maxHr: hr.n > 0 && hr.max != null ? Math.round(hr.max) : undefined,
+    };
+  });
+
   const heartRate = {
     current: cardioHealth.heartRate,
     resting: cardioHealth.restingHr,
     updatedAt: hrLatest?.at,
+    restingDelta, avgDelta, deltaWindowDays, dailyLog, runs,
     hourly,
     ranges: {
       W: hrSeries(7, 1),
