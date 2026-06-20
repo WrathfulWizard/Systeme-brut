@@ -151,14 +151,17 @@ export default function Connections() {
                 <div className="mono" style={{ fontSize: 11.5, lineHeight: 1.7 }}>
                   {(sync.healthCandidates?.length ? sync.healthCandidates : sync.healthEndpoint ? [sync.healthEndpoint] : []).length ? (
                     <>
-                      <div style={{ color: 'var(--dim)', marginBottom: 4 }}>POST endpoint — paste into Health Auto Export&apos;s REST API URL:</div>
-                      {(sync.healthCandidates?.length ? sync.healthCandidates : [sync.healthEndpoint!]).map((url) => (
-                        <div key={url} style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 3 }}>
-                          <span style={{ color: 'var(--text)' }}>{url}</span>
-                          <button className="btn" style={{ padding: '3px 8px', fontSize: 9 }}
-                            onClick={() => navigator.clipboard?.writeText(url)}>copy</button>
-                        </div>
-                      ))}
+                      <div style={{ color: 'var(--dim)', marginBottom: 4 }}>POST endpoint — paste into Health Auto Export&apos;s REST API URL (token included, no header needed):</div>
+                      {(sync.healthCandidates?.length ? sync.healthCandidates : [sync.healthEndpoint!]).map((url) => {
+                        const full = sync.healthToken ? `${url}?token=${sync.healthToken}` : url;
+                        return (
+                          <div key={url} style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 3 }}>
+                            <span style={{ color: 'var(--text)', wordBreak: 'break-all' }}>{full}</span>
+                            <button className="btn" style={{ padding: '3px 8px', fontSize: 9 }}
+                              onClick={() => navigator.clipboard?.writeText(full)}>copy</button>
+                          </div>
+                        );
+                      })}
                       <div style={{ color: 'var(--dim)', marginTop: 6 }}>
                         At home: use a LAN address above (phone + PC on the same network, usually 192.168.x).
                       </div>
@@ -169,17 +172,17 @@ export default function Connections() {
                     </div>
                   )}
 
-                  {/* Required auth header — the endpoint is always token-gated. */}
+                  {/* Header alternative — the ?token= URL above is the reliable path. */}
                   {sync.healthToken && (
                     <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 10 }}>
-                      <span style={{ color: 'var(--dim)' }}>Auth header:</span>
+                      <span style={{ color: 'var(--dim)' }}>Or header:</span>
                       <span style={{ color: 'var(--text)' }}>Authorization: Bearer {sync.healthToken}</span>
                       <button className="btn" style={{ padding: '3px 8px', fontSize: 9 }}
                         onClick={() => navigator.clipboard?.writeText(`Bearer ${sync.healthToken}`)}>copy</button>
                     </div>
                   )}
                   <div style={{ color: 'var(--dim)', marginTop: 2 }}>
-                    In Health Auto Export add this as a request header — the endpoint rejects writes without it.
+                    Use the <span style={{ color: 'var(--text)' }}>?token=</span> URL <em>or</em> this header — not both. A 401 means neither reached the server.
                   </div>
 
                   {/* Internet tunnel — sync over cellular when away from home. */}
@@ -187,11 +190,16 @@ export default function Connections() {
                     <div style={{ color: 'var(--text)', marginBottom: 6 }}>Internet sync (away from home)</div>
                     {sync.healthTunnel?.running && sync.healthTunnel.url ? (
                       <>
-                        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                          <span style={{ color: 'var(--text)' }}>{sync.healthTunnel.url}/ingest/health</span>
-                          <button className="btn" style={{ padding: '3px 8px', fontSize: 9 }}
-                            onClick={() => navigator.clipboard?.writeText(`${sync.healthTunnel!.url}/ingest/health`)}>copy</button>
-                        </div>
+                        {(() => {
+                          const turl = `${sync.healthTunnel.url}/ingest/health${sync.healthToken ? `?token=${sync.healthToken}` : ''}`;
+                          return (
+                            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                              <span style={{ color: 'var(--text)', wordBreak: 'break-all' }}>{turl}</span>
+                              <button className="btn" style={{ padding: '3px 8px', fontSize: 9 }}
+                                onClick={() => navigator.clipboard?.writeText(turl)}>copy</button>
+                            </div>
+                          );
+                        })()}
                         <div style={{ color: 'var(--dim)', marginTop: 4 }}>
                           Use this URL on the phone to sync over cellular. It changes if the app restarts — re-copy then.
                         </div>

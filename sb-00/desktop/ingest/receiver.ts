@@ -39,8 +39,13 @@ export function startReceiver(onIngest?: () => void): Server {
       // a freshly generated token takes effect without a restart.
       const token = getHealthToken() ?? process.env.HEALTH_INGEST_TOKEN;
       if (token) {
+        // Accept either the bearer header or a ?token= query param — Health Auto
+        // Export's custom-header UI is easy to misconfigure, the URL is not.
         const auth = req.headers.authorization ?? '';
-        if (auth !== `Bearer ${token}`) { res.writeHead(401, cors); res.end('unauthorized'); return; }
+        const qToken = new URL(req.url, 'http://localhost').searchParams.get('token');
+        if (auth !== `Bearer ${token}` && qToken !== token) {
+          res.writeHead(401, cors); res.end('unauthorized'); return;
+        }
       }
       let raw = '';
       req.on('data', (c) => { raw += c; if (raw.length > 50_000_000) req.destroy(); });
