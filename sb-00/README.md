@@ -11,10 +11,11 @@ browser required at runtime.
 │  main process (Node)                                          │
 │   • SQLite store (better-sqlite3)   • OS-encrypted secrets    │
 │   • ingestion services + scheduler  • local HTTP receiver     │
+│   • SB-Σ agent (local Ollama)       • Cloudflare quick tunnel │
 │            │ IPC (window.sb)                                   │
 │  renderer (static-exported Next.js UI) ── reads snapshots     │
 └──────────────────────────────────────────────────────────────┘
-        ▲ Strava API      ▲ Cronometer export    ▲ phone bridge → receiver
+   ▲ Strava API   ▲ Apple Health → receiver   ▲ Cronometer   ▲ Ollama (localhost)
 ```
 
 ## Run it
@@ -60,9 +61,9 @@ Open the **Connections** screen in the app to link them.
 
 | Source           | Mechanism                                                                 |
 | ---------------- | ------------------------------------------------------------------------- |
-| **Strava**       | Real API. OAuth2 (loopback redirect), then runs are polled every 15 min.  |
-| **Apple Health** | Push only — no cloud API. A phone bridge POSTs to the local receiver.     |
-| **Cronometer**   | Unofficial. Logs in with stored credentials and pulls the daily export.   |
+| **Strava**       | Real API. OAuth2 (loopback redirect); runs/rides/swims polled every 15 min, plus the gear (shoe/bike) locker with all-time mileage. |
+| **Apple Health** | Push only — no cloud API. A phone bridge POSTs to the local receiver; always token-gated. Reachable on LAN, or over cellular via a Cloudflare quick tunnel. |
+| **Cronometer**   | Recommended: ride the Apple Health pipe (no login). Alternates: a real browser sign-in (session persists) or a manual CSV import. |
 
 ### Strava
 Create a free personal API application at <https://www.strava.com/settings/api>
@@ -77,42 +78,72 @@ Cardio. Tokens refresh automatically.
 
 ### Apple Health
 Apple exposes no server API; HealthKit data lives on the phone. Install the
-**Health Auto Export** app (or build a Shortcut) and point its REST export at
-the endpoint shown on the Connections screen:
+**Health Auto Export** app (or build a Shortcut), set the export type to **REST
+API → JSON**, and point it at the endpoint shown on the Connections screen. The
+receiver is **always token-gated** — a per-install token is auto-generated and
+OS-encrypted. Use the single copy-paste URL with the token baked in:
 
 ```
-POST http://<this-machine-ip>:8787/ingest/health
+POST http://<lan-ip>:8787/ingest/health?token=<token>      # at home, on Wi-Fi
 ```
 
-Set it to run on a schedule (e.g. hourly). Optionally set `HEALTH_INGEST_TOKEN`
-and add it as a `Bearer` header to gate the endpoint. Cronometer's macros ride
-this same pipeline (Cronometer → Apple Health → receiver, tagged
-`cronometer_via_apple_health`).
+(Or send the token as an `Authorization: Bearer <token>` header — one or the
+other, not both.) Set it to run on a schedule (e.g. hourly). **Away from home?**
+Enable *Internet sync* on Connections: it opens a [Cloudflare quick
+tunnel](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/do-more-with-tunnels/trycloudflare/)
+(needs the free `cloudflared` binary) and shows a public HTTPS URL for the phone
+— no port-forwarding. Cronometer's diet rides this same pipe (Cronometer → Apple
+Health → receiver, tagged `cronometer_via_apple_health`), carrying calories,
+macros, the full vitamin/mineral set, and bodyweight.
 
-### Cronometer (unofficial — credentials stored)
-> ⚠️ Cronometer has **no public API**. This path logs in with your username and
-> password (held **OS-encrypted** via Electron `safeStorage`, never written in
-> the clear or committed) and scrapes the same daily CSV export the web app
-> generates. It is against Cronometer's ToS and can break if their login flow
-> changes. The non-credential alternative is the Apple Health pipeline above.
+### Cronometer
+**Recommended — no login, nothing to break.** In the Cronometer app enable
+*Settings → Apple Health*; Cronometer then writes your nutrition into Apple
+Health and it arrives through the receiver above. Two alternates on Connections:
 
-Enter your login on the Connections screen and *Link account*; the trailing two
-weeks of daily nutrition + micronutrients are pulled hourly (`cronometer_direct`).
+- **Browser sign-in** — a real Chromium window opens; you sign in once and the
+  session persists (it survives restarts, so it's effectively one-time). Beats
+  the bot protection that 403s a bare scraper. Stored optional credentials let
+  it re-link silently. Pulls the trailing two weeks hourly (`cronometer_direct`).
+- **CSV import** — export *Daily Nutrition* yourself and drop the file in. Fully
+  ToS-clean, no login, no network.
+
+> Any stored Cronometer credentials are held **OS-encrypted** via Electron
+> `safeStorage` — never written in the clear or committed.
 
 ## Layout
 
-- `app/` — one route per IA screen plus `/connections`. Client components that
-  read a single `Snapshot` from the provider (`app/providers.tsx`), which uses
-  `window.sb` IPC in the desktop app and falls back to seed data in a browser.
-- `components/` — `HubFrame`, `Nav`, `Ascii`, `Feed`, `SerumLiquidRender`.
+The renderer (`app/`, `components/`, `lib/`) reads a single `Snapshot`; the
+Electron backend (`desktop/`) builds it from local SQLite and serves it over IPC.
+
+- `app/` — one route per screen: `page.tsx` (**SB-Σ Synthesizer**, the home —
+  chat + the launch briefing), `lifts/`, `cardio/`, `pharmacology/`,
+  `nutrition/` (Substrate), `flags/`, `connections/`. `providers.tsx` exposes
+  the snapshot + actions via `window.sb` IPC, falling back to seed data in a
+  plain browser. `globals.css` is the design system; `layout.tsx` mounts the
+  boot splash + route transitions.
+- `components/`
+  - `HubFrame`, `Nav`, `NodeGlyph` (per-node logos), `RouteTransition` — shell/chrome.
+  - `Ascii` + `VBars` — the monospace `█`/`░` bars and the heart vertical-bar chart.
+  - `Feed`, `LogForms` — the SB-Σ flag feed and the manual log forms.
+  - `SerumLiquidRender` + `SerumDetail` — the WebGL serum readout and its per-compound detail.
+  - `BootSplash` — the Ghost-in-the-Shell boot sequence (holds until SB-Σ's briefing is ready).
 - `lib/` — `types.ts` (the IPC contract), `seed-data.ts` (first-paint / web
-  fallback), `ascii.ts` (the real-monospace `█`/`░` bars).
+  fallback), `ascii.ts` (the bar builder), `version.ts` (`APP_VERSION`, bumped
+  every feature change).
 - `desktop/` — the Electron backend (compiled to `dist-electron/`):
-  - `main.ts` / `preload.ts` — shell, window, IPC, Strava OAuth loopback.
-  - `db/` — SQLite schema + seed + the snapshot/connection queries.
-  - `ingest/` — `strava.ts`, `cronometer.ts`, `appleHealth.ts`, `receiver.ts`,
-    `secrets.ts`, and the orchestrator `index.ts`.
-  - `smoke.cjs` — `node desktop/smoke.cjs` exercises DB + both parsers.
+  - `main.ts` / `preload.ts` — shell, window, the full IPC surface, Strava OAuth loopback.
+  - `db/` — `schema.sql` + `seed.sql`, `queries.ts` (snapshot), `mutations.ts`
+    (validated write path), `analytics.ts` + `training.ts` (progress/deload).
+  - `ingest/` — `strava.ts`, `appleHealth.ts`, `cronometer.ts` +
+    `cronometer-browser.ts`, `receiver.ts`, `tunnel.ts` (cloudflared),
+    `lan.ts`, `secrets.ts` (`safeStorage` vault), and the orchestrator `index.ts`.
+  - `agent/` — the local **SB-Σ** brain over Ollama: `ollama.ts` (chat / review
+    / sweep), `launch.ts` (auto-start + model pull), `context.ts` (hub brief),
+    `startup-review.ts` (the launch briefing).
+  - `pharma/` — `compounds.ts` (half-life library) + `serum.ts` (the PK model).
+  - `smoke.cjs` — `node desktop/smoke.cjs` exercises the DB, parsers, PK math,
+    validation, and multi-source dedup end-to-end (run before committing).
 
 > `AGENTS.md` notes Next 16 has breaking changes — check
 > `node_modules/next/dist/docs/` before writing Next code.

@@ -18,9 +18,11 @@ Start with **[`docs/HANDOFF.md`](docs/HANDOFF.md)**.
 | **SB-Σ**  | The Synthesizer      | cross-cutting | `insights` + `estimated_serum_levels`       |
 
 SB-00 ships as a **standalone desktop program** with automatic ingestion from
-**Strava** (real API), **Apple Health** (phone bridge → local receiver), and
-**Cronometer** (Apple Health pipeline + an opt-in unofficial scraper). See
-[`sb-00/README.md`](sb-00/README.md) for the connection setup.
+**Strava** (real API), **Apple Health** (phone bridge → token-gated local
+receiver, with a Cloudflare quick tunnel for cellular sync), and **Cronometer**
+(recommended via the Apple Health pipe; browser sign-in and CSV import as
+alternates). A local **SB-Σ** agent (Ollama) reviews the hub and prepares a
+launch briefing on startup. See [`sb-00/README.md`](sb-00/README.md) for setup.
 
 Build order is deliberate: **SB-00 first** — it's a web app with no platform
 fight and is genuinely usable on its own once data flows in. See the handoff for
@@ -37,8 +39,11 @@ docs/                       Architecture v2, closed IA, the handoff brief, mocku
 supabase/
   migrations/               The v2 schema, by node
   seed.sql                  Mockup numbers, so SB-00 renders before ingestion is wired
-sb-00/                      The master hub — Next.js app (PRIMARY build)
+sb-00/                      The master hub — Electron + Next.js app (PRIMARY build)
 sb-02-watchface/            Wrist module — separate hardware problem, own README
+.github/workflows/          CI — builds the SB-00 installer
+.claude/                    Repo automation (version-bump reminder hook)
+CLAUDE.md                   Agent orientation — read first when working the repo
 ```
 
 ## SB-00 — the hub
@@ -50,13 +55,15 @@ npm run rebuild:native   # better-sqlite3 for Electron's ABI (once)
 npm run desktop          # build + launch the standalone app
 ```
 
-Seven screens, mirroring the closed IA: **Overview**, **Lifts**, **Cardio**,
-**Pharmacology**, **Nutrition**, **Flags (SB-Σ, by node)**, and **Connections**
-(link Strava / Cronometer / Apple Health). The Electron backend keeps a local
-**SQLite** store (seeded from the mockup numbers so the hub is populated on
-first run) that the ingestion services write and the UI reads over IPC. SQLite
-mirrors the v2 schema; the Supabase Postgres project remains the schema source
-of truth, and `supabase/migrations/` is what a server-side deployment runs.
+Seven screens, mirroring the closed IA: **SB-Σ Synthesizer** (the home — a local
+AI that reviews the hub, chats, and raises flags), **Lifts**, **Cardio**,
+**Pharmacology**, **Substrate** (nutrition + body composition), **Flags (by
+node)**, and **Connections** (link Strava / Cronometer / Apple Health). The
+Electron backend keeps a local **SQLite** store (seeded from the mockup numbers
+so the hub is populated on first run) that the ingestion services write and the
+UI reads over IPC. SQLite mirrors the v2 schema; the Supabase Postgres project
+remains the schema source of truth, and `supabase/migrations/` is what a
+server-side deployment runs.
 
 ### Design system
 
