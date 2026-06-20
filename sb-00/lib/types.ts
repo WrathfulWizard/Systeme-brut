@@ -91,11 +91,12 @@ export interface Snapshot {
   /** aggregated distance for the week/month/3mo/6mo/year cardio toggle */
   cardioWeekly: CardioPoint[];
   cardioMonthly: CardioPoint[];
-  /** cardiovascular health from Apple Health (VO2max, resting HR, HRV) */
+  /** cardiovascular health from Apple Health (VO2max, resting HR, HRV, heart rate) */
   cardioHealth: {
-    vo2max?: number; restingHr?: number; hrv?: number;
+    vo2max?: number; restingHr?: number; hrv?: number; heartRate?: number;
     vo2Trend: { date: string; value: number }[];
     rhrTrend: { date: string; value: number }[];
+    hrTrend: { date: string; value: number }[];
   };
   /** running shoes / bikes + accumulated mileage */
   gear: GearRow[];

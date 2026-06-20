@@ -70,22 +70,28 @@ export default function Cardio() {
         </div>
 
         <div className="block">
-          <p className="eyebrow">Cardio health — VO₂max · resting HR</p>
-          {(ch.vo2max != null || ch.restingHr != null || ch.hrv != null) ? (
+          <p className="eyebrow">Cardio health — VO₂max · resting HR · heart rate</p>
+          {(ch.vo2max != null || ch.restingHr != null || ch.hrv != null || ch.heartRate != null) ? (
             <>
               <div className="bodycomp-now">
                 {ch.vo2max != null && <span><b>{ch.vo2max}</b> VO₂max</span>}
                 {ch.restingHr != null && <span><b>{ch.restingHr}</b> resting HR</span>}
+                {ch.heartRate != null && <span><b>{Math.round(ch.heartRate)}</b> bpm heart rate</span>}
                 {ch.hrv != null && <span><b>{ch.hrv}</b> HRV ms</span>}
               </div>
-              {ch.vo2Trend.length > 1 && (
+              {ch.vo2Trend.length > 1 ? (
                 <>
                   <p className="eyebrow" style={{ fontSize: 10 }}>VO₂max trend</p>
                   <Ascii rows={asciiBars(ch.vo2Trend.map((v) => ({ label: v.date, value: v.value, display: String(v.value) })), 20)} />
                 </>
+              ) : ch.hrTrend.length > 1 && (
+                <>
+                  <p className="eyebrow" style={{ fontSize: 10 }}>Heart rate trend (bpm)</p>
+                  <Ascii rows={asciiBars(ch.hrTrend.map((v) => ({ label: v.date, value: v.value, display: String(Math.round(v.value)) })), 20)} />
+                </>
               )}
             </>
-          ) : <p className="synced-note">No VO₂max / resting-HR yet — push Apple Health (Health Auto Export → the endpoint on Connections).</p>}
+          ) : <p className="synced-note">No cardio-health data yet — push Apple Health (Health Auto Export → the endpoint on Connections). Select Heart Rate, Resting Heart Rate, or VO₂max.</p>}
         </div>
 
         <div className="block">
