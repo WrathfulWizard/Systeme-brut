@@ -60,13 +60,26 @@ export type ProgressPeriod = 'W' | 'M' | '3M' | '6M' | 'Y';
 
 /** One bar in a heart-rate chart — an average with an optional min/max band. */
 export interface HeartRatePoint { label: string; value: number; min?: number; max?: number }
-/** Heart-rate readout: live + resting now, an hour-resolution day, and W..Y series. */
+/** A day in the heart-rate log: resting + the day's avg/min/max. */
+export interface HeartDayRow { date: string; resting?: number; avg: number; min: number; max: number }
+/** A logged session cross-referenced against HR samples taken during it. */
+export interface HeartRunRow {
+  date: string; sport: Sport; distance: string; durationMin: number;
+  avgHr?: number; maxHr?: number;   // undefined when no HR was logged during the run
+}
+/** Heart-rate readout: live + resting now, an hour-resolution day, W..Y series,
+ *  an improvement signal, a daily log, and per-run in-activity HR. */
 export interface HeartRateBlock {
   current?: number;          // latest heart-rate reading (bpm)
   resting?: number;          // latest resting heart rate (bpm)
   updatedAt?: string;        // ISO of the latest reading, for "as of" labelling
   hourly: HeartRatePoint[];  // most recent ~24h, one bar per hour (label "HH:00")
   ranges: Record<ProgressPeriod, HeartRatePoint[]>;  // avg/min/max per bucket
+  restingDelta?: number;     // resting-HR change over the window (negative = improving)
+  avgDelta?: number;         // daily-avg HR change over the window
+  deltaWindowDays?: number;  // how many days the deltas span
+  dailyLog: HeartDayRow[];   // the last ~14 recorded days, newest first
+  runs: HeartRunRow[];       // recent sessions with in-activity HR
 }
 export interface ProgressRow { metric: string; value: string; prev: string; delta: string; dir: 'up' | 'down' | 'flat'; upGood: boolean; }
 export interface TotalRow { nutrient: string; today: string; target: string; delta: string; }

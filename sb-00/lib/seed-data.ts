@@ -112,6 +112,22 @@ export const seedSnapshot: Snapshot = {
       '6M': Array.from({ length: 13 }, (_, i) => ({ label: `0${1 + Math.floor(i / 2)}.1${i % 2}`, value: 63 + Math.round(5 * Math.cos(i / 2)), min: 47, max: 145 })),
       Y: Array.from({ length: 12 }, (_, i) => ({ label: `25.${String(i + 7).padStart(2, '0')}`.replace('25.13', '26.01'), value: 64 + Math.round(4 * Math.sin(i)), min: 46, max: 150 })),
     },
+    restingDelta: -4, avgDelta: -3, deltaWindowDays: 30,
+    dailyLog: [
+      { date: '06.20', resting: 48, avg: 60, min: 45, max: 121 },
+      { date: '06.19', resting: 49, avg: 65, min: 48, max: 157 },
+      { date: '06.18', resting: 49, avg: 61, min: 46, max: 133 },
+      { date: '06.17', resting: 50, avg: 63, min: 47, max: 142 },
+      { date: '06.16', resting: 50, avg: 66, min: 48, max: 161 },
+      { date: '06.15', resting: 51, avg: 62, min: 46, max: 138 },
+      { date: '06.14', resting: 52, avg: 64, min: 47, max: 154 },
+    ],
+    runs: [
+      { date: '26.06.18', sport: 'run', distance: '7.2km', durationMin: 38, avgHr: 151, maxHr: 173 },
+      { date: '26.06.15', sport: 'run', distance: '5.0km', durationMin: 26, avgHr: 146, maxHr: 168 },
+      { date: '26.06.12', sport: 'ride', distance: '24.0km', durationMin: 54, avgHr: 132, maxHr: 159 },
+      { date: '26.06.09', sport: 'run', distance: '6.1km', durationMin: 33, avgHr: 149, maxHr: 171 },
+    ],
   },
   gear: [
     { id: 1, name: 'Nike Vaporfly 3', kind: 'shoe', km: 214.6, retired: false, source: 'strava' },

@@ -405,5 +405,22 @@ console.log('✓ protocol + titration  (test 14→16, deca 7→10) · flags reso
   assert.equal(typeof sweep.ran, 'boolean', 'sweep returns a result even offline');
   assert.ok(sweep.ran === true || typeof sweep.error === 'string', 'offline sweep carries an error message');
   console.log(`✓ sb-Σ agent status      (ollama ${st.reachable ? 'reachable' : 'offline — handled'})`);
+
+  // --- heart: run × HR cross-reference + daily log ---
+  {
+    const db = getDb();
+    // A wide (48h) window makes the local-time join tz-robust in any container.
+    db.prepare("INSERT INTO cardio_sessions (occurred_at, distance_km, duration_sec, sport, source, external_id) VALUES (?,?,?,?,?,?)")
+      .run('2026-06-25T00:00:00', 8.0, 172800, 'run', 'manual', 'smoke_runhr');
+    const ins = db.prepare("INSERT INTO wearable_readings (measured_at, metric, value, unit, device_source) VALUES (?,?,?,?,?)");
+    ins.run('2026-06-25T12:00:00.000Z', 'heart_rate', 150, 'count/min', 'apple_health');
+    ins.run('2026-06-26T00:00:00.000Z', 'heart_rate', 170, 'count/min', 'apple_health');
+    const s = getSnapshot();
+    const run = s.heartRate.runs.find((r) => r.distance === '8.0km');
+    assert.ok(run && run.avgHr === 160 && run.maxHr === 170, 'run HR cross-reference computes avg/max during the session');
+    assert.ok(Array.isArray(s.heartRate.dailyLog), 'daily HR log present');
+    console.log(`✓ heart cross-ref        (run avgHR ${run.avgHr}/max ${run.maxHr} · daily log ${s.heartRate.dailyLog.length}d)`);
+  }
+
   console.log('\nALL SMOKE CHECKS PASSED');
 })();
