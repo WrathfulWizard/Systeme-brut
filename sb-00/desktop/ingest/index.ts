@@ -3,7 +3,7 @@ import type { SourceId, SyncMeta } from '../../lib/types';
 import { syncStrava } from './strava';
 import { syncCronometerAny, cronometerLinked } from './cronometer';
 import { setStrava, setCronometer, getStrava } from './secrets';
-import { startReceiver, stopReceiver, healthEndpoint } from './receiver';
+import { startReceiver, stopReceiver } from './receiver';
 
 /**
  * Ingestion orchestrator — owns the receiver + the periodic poll loop, and is
@@ -21,9 +21,8 @@ let broadcast: ((m: SyncMeta) => void) | undefined;
 function emit() { broadcast?.(meta()); }
 
 export function meta(): SyncMeta {
-  const m = getSyncMeta();
-  m.healthEndpoint = healthEndpoint();
-  return m;
+  // getSyncMeta() already resolves the Apple Health endpoint(s) into the meta.
+  return getSyncMeta();
 }
 
 export function startIngestion(onUpdate?: (m: SyncMeta) => void) {
@@ -63,5 +62,3 @@ export function disconnect(source: SourceId): SyncMeta {
   emit();
   return meta();
 }
-
-export { healthEndpoint };

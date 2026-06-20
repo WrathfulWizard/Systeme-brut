@@ -182,8 +182,6 @@ export function getSnapshot(): Snapshot {
     hrv: wearLatest('hrv'),
     heartRate: wearLatest('heart_rate'),
     vo2Trend: wearTrend('vo2_max'),
-    rhrTrend: wearTrend('resting_heart_rate'),
-    hrTrend: wearTrend('heart_rate'),
   };
 
   // Heart-rate command readout: live + resting now, an hour-resolution last day,
