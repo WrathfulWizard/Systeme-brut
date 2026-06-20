@@ -12,6 +12,20 @@ const rpJson = (input: LiftInput) => (input.setKind === 'rp' && input.rpReps?.le
 const TARGET_DEFAULT = 20;
 
 /**
+ * Trust-boundary guard. The IPC layer hands these straight to SQLite and the PK
+ * math downstream, so a NaN/Infinity/negative number (a malformed input, or a
+ * field that slipped past the form) must be rejected here — not persisted to
+ * poison every later serum/tonnage computation. `max` caps absurd values (a
+ * fat-fingered "1e9mg") that would still be finite.
+ */
+function num(v: number, field: string, { min = 0, max = 1e6 } = {}): number {
+  if (typeof v !== 'number' || !Number.isFinite(v) || v < min || v > max) {
+    throw new Error(`Invalid ${field}: ${v}`);
+  }
+  return v;
+}
+
+/**
  * Manual logging — the write path behind the in-app log forms (Training and
  * Pharmacology). Everything lands in the same local SQLite the snapshot reads,
  * so a write is immediately visible. Cardio and Nutrition are intentionally not
@@ -46,6 +60,8 @@ function sessionForDate(dateISO: string): number {
 
 export function addSet(input: LiftInput) {
   const db = getDb();
+  num(input.weightKg, 'weight', { max: 2000 });
+  num(effectiveReps(input), 'reps', { max: 10000 });
   const exerciseId = ensureExercise(input.exercise);
   const sessionId = sessionForDate(input.date);
   const ord = (db.prepare('SELECT COALESCE(MAX(ordinal),0)+1 AS n FROM sets WHERE session_id = ?').get(sessionId) as { n: number }).n;
@@ -69,6 +85,8 @@ export function addSet(input: LiftInput) {
 
 export function updateSet(id: number, input: LiftInput) {
   const db = getDb();
+  num(input.weightKg, 'weight', { max: 2000 });
+  num(effectiveReps(input), 'reps', { max: 10000 });
   const exerciseId = ensureExercise(input.exercise);
   const sessionId = sessionForDate(input.date);
   const target = input.setKind === 'widowmaker' ? (input.targetReps ?? TARGET_DEFAULT) : null;
@@ -105,6 +123,7 @@ export function deleteSet(id: number) {
 
 export function addAdministration(input: AdminInput) {
   const db = getDb();
+  num(input.doseMg, 'dose');
   const compoundId = ensureCompound(input.compound);
   db.prepare(
     'INSERT INTO administrations (compound_id, administered_at, dose_mg, route) VALUES (?,?,?,?)',
@@ -113,6 +132,7 @@ export function addAdministration(input: AdminInput) {
 
 export function updateAdministration(id: number, input: AdminInput) {
   const db = getDb();
+  num(input.doseMg, 'dose');
   const compoundId = ensureCompound(input.compound);
   db.prepare(
     'UPDATE administrations SET compound_id=?, administered_at=?, dose_mg=?, route=? WHERE id=?',
@@ -125,6 +145,8 @@ export function deleteAdministration(id: number) {
 
 export function addTitration(input: TitrationInput) {
   const db = getDb();
+  num(input.after, 'dose');
+  if (input.before != null) num(input.before, 'dose');
   const compoundId = ensureCompound(input.compound);
   db.prepare(
     'INSERT INTO titration_log (compound_id, changed_at, dose_before_mg, dose_after_mg, notes) VALUES (?,?,?,?,?)',
@@ -193,6 +215,7 @@ export function deleteBodyMetric(id: number) {
 /** Set the active bodyweight goal (kg). Creates the goal row if none exists. */
 export function setWeightGoal(targetKg: number) {
   const db = getDb();
+  num(targetKg, 'target weight', { min: 1, max: 2000 });
   const existing = db.prepare("SELECT id FROM goals WHERE metric='body_mass' AND status='active' LIMIT 1").get() as { id: number } | undefined;
   if (existing) {
     db.prepare('UPDATE goals SET target_value = ?, unit = ? WHERE id = ?').run(targetKg, 'kg', existing.id);
@@ -208,6 +231,7 @@ const todayDate = () => nowIso().slice(0, 10);
 
 export function addProtocol(input: ProtocolInput) {
   const db = getDb();
+  num(input.doseMg, 'dose');
   const compoundId = ensureCompound(input.compound);
   // Allow backdating so protocols started before adopting the app estimate serum
   // correctly. Guard against a future date.
@@ -220,6 +244,7 @@ export function addProtocol(input: ProtocolInput) {
 /** Change a running protocol's dose; logs the before→after as a titration. */
 export function titrateProtocol(id: number, newDoseMg: number, note?: string) {
   const db = getDb();
+  num(newDoseMg, 'dose');
   const p = db.prepare('SELECT compound_id AS cid, daily_dose_mg AS dose FROM protocols WHERE id = ?').get(id) as
     { cid: number; dose: number } | undefined;
   if (!p) return;

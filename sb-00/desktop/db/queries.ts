@@ -439,9 +439,16 @@ function buildSerumByCompound(): SerumCompound[] {
     const info = lookup(p.name);
     const halfLifeDays = p.hl && p.hl > 0 ? p.hl / 24 : info.halfLifeDays;
 
+    // Scope titrations to THIS protocol's lifetime — titration_log has no
+    // protocol_id, so a bare compound_id match would let a previous (ended)
+    // cycle's dose steps bleed into a later protocol for the same compound.
     const tits = db.prepare(
-      'SELECT changed_at AS at, dose_before_mg AS before, dose_after_mg AS after FROM titration_log WHERE compound_id = ? ORDER BY changed_at',
-    ).all(p.cid) as { at: string; before: number; after: number }[];
+      `SELECT changed_at AS at, dose_before_mg AS before, dose_after_mg AS after
+       FROM titration_log
+       WHERE compound_id = ? AND date(changed_at) >= date(?)
+         AND (? IS NULL OR date(changed_at) <= date(?))
+       ORDER BY changed_at`,
+    ).all(p.cid, p.since, p.ended, p.ended) as { at: string; before: number; after: number }[];
 
     const initial = tits.length ? (tits[0].before ?? p.dose) : p.dose;
     const steps = [{ t: dayMsOf(p.since), dose: initial }, ...tits.map((t) => ({ t: dayMsOf(t.at), dose: t.after }))];
@@ -480,7 +487,9 @@ function buildSerumByCompound(): SerumCompound[] {
     const admins = db.prepare(
       'SELECT administered_at AS at, dose_mg AS dose FROM administrations WHERE compound_id = ?',
     ).all(l.cid) as { at: string; dose: number }[];
-    const series = discreteSerum(admins.map((a) => ({ t: dayMsOf(a.at), dose: a.dose })), halfLifeDays, { windowDays: SERUM_WINDOW_DAYS });
+    // Anchor to today (not the last dose) so a one-off administration keeps
+    // decaying as days pass instead of freezing at its injection-day level.
+    const series = discreteSerum(admins.map((a) => ({ t: dayMsOf(a.at), dose: a.dose })), halfLifeDays, { windowDays: SERUM_WINDOW_DAYS, anchorMs: Date.now() });
     if (series.length === 0 || series.every((s) => s.mg === 0)) continue;
     out.push({
       key: info.key, label: info.shortLabel, klass: info.klass, color: info.color,
