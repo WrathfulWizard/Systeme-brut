@@ -108,7 +108,12 @@ assert.ok(snap.recentSets.find((s) => s.exercise === 'Deadlift'), 'logged set ap
 assert.ok(snap.administrations.find((a) => a.compound === 'HCG'), 'logged dose appears');
 assert.ok(snap.titration.find((t) => t.change === '14mg → 16mg'), 'titration change appears');
 assert.ok(snap.labResults.find((l) => l.marker === 'ALT' && l.flagged), 'new lab panel is latest, ALT flagged');
-console.log('✓ manual logging        (set + dose + titration + lab panel written and reflected)');
+// Trust boundary: NaN/Infinity/negative numbers must be rejected, never persisted.
+assert.throws(() => mut.addProtocol({ compound: 'BadCompound', doseMg: NaN, route: 'IM' }), /Invalid dose/, 'NaN dose rejected');
+assert.throws(() => mut.addAdministration({ compound: 'BadCompound', doseMg: Infinity, route: 'IM', administeredAt: '2026-06-18T08:00:00' }), /Invalid dose/, 'Infinity dose rejected');
+assert.throws(() => mut.addSet({ date: '2026-06-18', exercise: 'BadLift', setKind: 'straight', weightKg: -5, reps: 5 }), /Invalid weight/, 'negative weight rejected');
+assert.ok(!getSnapshot().catalog.compounds.includes('BadCompound') || getSnapshot().serumByCompound.every((s) => Number.isFinite(s.current)), 'no NaN serum persisted');
+console.log('✓ manual logging        (set + dose + titration + lab panel written and reflected · bad input rejected)');
 
 // --- edit + delete ---
 snap = getSnapshot();
