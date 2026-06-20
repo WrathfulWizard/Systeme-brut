@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, shell, Menu } from 'electron';
+import { app, BrowserWindow, ipcMain, shell, Menu, Tray, nativeImage } from 'electron';
 import { join } from 'node:path';
 import { randomBytes } from 'node:crypto';
 import { createServer, type Server } from 'node:http';
@@ -33,6 +33,9 @@ const STATIC_PORT = 8789;
 
 let win: BrowserWindow | null = null;
 let staticServer: Server | null = null;
+let tray: Tray | null = null;
+let isQuitting = false;
+const ICON = join(__dirname, 'assets', 'icon.png');
 
 /* ---- serve the static-exported Next UI (production) ---------------------- */
 const MIME: Record<string, string> = {
@@ -167,10 +170,20 @@ async function createWindow() {
   // not a document editor. Removing the default menu reclaims the title strip.
   Menu.setApplicationMenu(null);
   win = new BrowserWindow({
-    width: 1360, height: 900, backgroundColor: '#0d0d0e',
+    width: 1360, height: 900, minWidth: 720, minHeight: 560, backgroundColor: '#0d0d0e',
     title: 'Systeme Brut // SB-00',
+    icon: ICON,
     autoHideMenuBar: true,
     webPreferences: { preload: join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false },
+  });
+  // Run in the background like Discord/Ollama: closing the window hides it to the
+  // tray (and drops the taskbar entry) instead of quitting. Real quit is the tray
+  // menu (or app.quit, which sets isQuitting via before-quit).
+  win.on('close', (e) => {
+    if (isQuitting) return;
+    e.preventDefault();
+    win?.hide();
+    win?.setSkipTaskbar(true);
   });
   if (DEV) {
     await win.loadURL(DEV_URL);
@@ -178,6 +191,31 @@ async function createWindow() {
     const url = await startStaticServer(join(app.getAppPath(), 'out'));
     await win.loadURL(url);
   }
+}
+
+function showWindow() {
+  if (!win || win.isDestroyed()) { void createWindow(); return; }
+  win.show();
+  win.setSkipTaskbar(false);
+  win.focus();
+}
+
+function createTray() {
+  if (tray) return;
+  try {
+    const img = nativeImage.createFromPath(join(__dirname, 'assets', 'tray.png'));
+    tray = new Tray(img.isEmpty() ? nativeImage.createFromPath(ICON) : img);
+  } catch { return; }   // tray unsupported on this platform — app still runs windowed
+  tray.setToolTip('Systeme Brut // SB-00');
+  tray.on('click', () => {
+    if (win && win.isVisible() && !win.isMinimized()) { win.hide(); win.setSkipTaskbar(true); }
+    else showWindow();
+  });
+  tray.setContextMenu(Menu.buildFromTemplate([
+    { label: 'Open Systeme Brut', click: showWindow },
+    { type: 'separator' },
+    { label: 'Quit', click: () => { isQuitting = true; app.quit(); } },
+  ]));
 }
 
 app.whenReady().then(() => {
@@ -211,9 +249,14 @@ app.whenReady().then(() => {
     }
   });
   createWindow();
+  createTray();
 
-  app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
+  app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); else showWindow(); });
 });
 
-app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
-app.on('quit', () => { stopIngestion(); stopTunnel(); staticServer?.close(); });
+// Keep running in the tray when the window is closed (background app). The only
+// real exits are the tray's Quit and an OS quit — both flip isQuitting so the
+// window's close handler stops intercepting.
+app.on('before-quit', () => { isQuitting = true; });
+app.on('window-all-closed', () => { /* stay alive in the tray; quit via the tray menu */ });
+app.on('quit', () => { stopIngestion(); stopTunnel(); staticServer?.close(); tray?.destroy(); });

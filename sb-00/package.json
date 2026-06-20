@@ -1,6 +1,6 @@
 {
   "name": "sb-00",
-  "version": "0.8.0",
+  "version": "0.12.0",
   "private": true,
   "description": "Systeme Brut — SB-00 master hub, standalone desktop program.",
   "author": "Systeme Brut",
@@ -51,11 +51,13 @@
     "npmRebuild": true,
     "mac": {
       "category": "public.app-category.healthcare-fitness",
+      "icon": "desktop/assets/icon.png",
       "target": [
         "dmg"
       ]
     },
     "win": {
+      "icon": "desktop/assets/icon.png",
       "target": [
         "nsis"
       ]
@@ -69,6 +71,7 @@
       "shortcutName": "Systeme Brut SB-00"
     },
     "linux": {
+      "icon": "desktop/assets/icon.png",
       "target": [
         "AppImage"
       ],
