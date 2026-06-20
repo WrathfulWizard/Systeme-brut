@@ -26,9 +26,16 @@ export default function Sigma() {
   // opening message so a full review is waiting the moment the hub appears.
   useEffect(() => {
     if (!window.sb) return;
+    // The boot splash covers the hub until the briefing resolves, so messages are
+    // empty when this fires — seed it as the opening turn. `seeded` keeps the two
+    // signals (initial fetch + push) from double-seeding; no side effect runs
+    // inside the state updater.
+    let seeded = false;
     const seed = (text?: string) => {
-      if (!text) return;
-      setMessages((m) => { if (m.length) return m; setBriefing(true); return [{ role: 'assistant', content: text }]; });
+      if (!text || seeded) return;
+      seeded = true;
+      setBriefing(true);
+      setMessages((m) => (m.length ? m : [{ role: 'assistant', content: text }]));
     };
     window.sb.getStartupReview().then((r) => { if (r.status === 'ready') seed(r.text); }).catch(() => {});
     const off = window.sb.onReviewReady((r) => { if (r.status === 'ready') seed(r.text); });

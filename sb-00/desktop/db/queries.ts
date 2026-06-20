@@ -180,29 +180,37 @@ export function getSnapshot(): Snapshot {
   // on the latest *recorded* reading (not wall-clock), so the readout stays useful
   // even if the machine was off — gaps collapse instead of blanking the chart.
   const hrDaily = db.prepare(`
-    SELECT date(measured_at) AS d, AVG(value) AS avg, MIN(value) AS min, MAX(value) AS max
+    SELECT date(measured_at) AS d, AVG(value) AS avg, MIN(value) AS min, MAX(value) AS max, COUNT(*) AS n
     FROM wearable_readings WHERE metric='heart_rate'
     GROUP BY date(measured_at) ORDER BY d
-  `).all() as { d: string; avg: number; min: number; max: number }[];
+  `).all() as { d: string; avg: number; min: number; max: number; n: number }[];
   const hrLatest = db.prepare(
     "SELECT measured_at AS at FROM wearable_readings WHERE metric='heart_rate' ORDER BY measured_at DESC LIMIT 1",
   ).get() as { at: string } | undefined;
 
-  const hrAvg = (rows: { avg: number; min: number; max: number }[], label: string): HeartRatePoint => ({
-    label,
-    value: Math.round(rows.reduce((s, r) => s + r.avg, 0) / rows.length),
-    min: Math.round(Math.min(...rows.map((r) => r.min))),
-    max: Math.round(Math.max(...rows.map((r) => r.max))),
-  });
+  // Reading-weighted across days so a day with one resting sync doesn't count the
+  // same as a day with thousands of samples (mean-of-means would skew the bar).
+  const hrAvg = (rows: { avg: number; min: number; max: number; n: number }[], label: string): HeartRatePoint => {
+    const total = rows.reduce((s, r) => s + r.n, 0) || rows.length;
+    return {
+      label,
+      value: Math.round(rows.reduce((s, r) => s + r.avg * r.n, 0) / total),
+      min: Math.round(Math.min(...rows.map((r) => r.min))),
+      max: Math.round(Math.max(...rows.map((r) => r.max))),
+    };
+  };
+  // Format a 'YYYY-MM-DD' label directly — md()/new Date() would parse a date-only
+  // string as UTC midnight and shift the day for anyone west of UTC.
+  const dLabel = (s: string) => `${s.slice(5, 7)}.${s.slice(8, 10)}`;
   // last `days` recorded days, optionally chunked into fixed-size buckets
   const hrSeries = (days: number, chunk: number): HeartRatePoint[] => {
     const recent = hrDaily.slice(-days);
     if (!recent.length) return [];
-    if (chunk <= 1) return recent.map((r) => hrAvg([r], md(r.d)));
+    if (chunk <= 1) return recent.map((r) => hrAvg([r], dLabel(r.d)));
     const out: HeartRatePoint[] = [];
     for (let i = 0; i < recent.length; i += chunk) {
       const grp = recent.slice(i, i + chunk);
-      out.push(hrAvg(grp, md(grp[0].d)));
+      out.push(hrAvg(grp, dLabel(grp[0].d)));
     }
     return out;
   };

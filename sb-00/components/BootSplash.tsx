@@ -69,6 +69,9 @@ export default function BootSplash() {
 
     const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
     if (reduce) {
+      // Motion-sensitive users shouldn't sit on a static splash waiting on the
+      // briefing — release immediately; the review still seeds the hub when ready.
+      reviewDone.current = true;
       setTitle(TITLE); setReady(true); setDone(NODES.length);
       const t = setTimeout(markBaseDone, 500);
       return () => { clearTimeout(t); clearTimeout(cap); offReview?.(); };

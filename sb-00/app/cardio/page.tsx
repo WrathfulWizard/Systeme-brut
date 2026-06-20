@@ -87,7 +87,7 @@ export default function Cardio() {
             </div>
           </div>
 
-          {(hr.current != null || hr.resting != null || ch.vo2max != null || ch.hrv != null) ? (
+          {(hr.current != null || hr.resting != null || ch.vo2max != null || ch.hrv != null || hrSeries.length > 0) ? (
             <>
               <div className="hr-stats">
                 {hr.current != null && <div className="hr-stat"><b>{Math.round(hr.current)}</b><span>bpm now</span></div>}
