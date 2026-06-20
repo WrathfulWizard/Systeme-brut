@@ -25,8 +25,10 @@ export default function Lifts() {
   return (
     <div className="page">
       <HubFrame
-        status={<>SYNC OK · 3 NODES · <span className="flag">{flagCount} OPEN FLAGS</span></>}
-        foot={<span className="flag">Last flag — Sodium, today</span>}
+        status={<>SYNC OK · 3 NODES · <span className="flag">{flagCount} OPEN FLAG{flagCount === 1 ? '' : 'S'}</span></>}
+        foot={flagCount > 0
+          ? <span className="flag">{flagCount} open flag{flagCount === 1 ? '' : 's'}</span>
+          : <span>All clear</span>}
         side={<Feed items={trainingInfo} />}
       >
         {trainingStatus.deloadDue && (
