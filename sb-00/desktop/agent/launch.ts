@@ -14,7 +14,10 @@ import type { ModelPullStatus } from '../../lib/types';
  * automatically so the operator never has to open a terminal for that either.
  */
 
-export const DEFAULT_MODEL = 'llama3.2:3b';
+// A deliberately small default so SB-Σ loads on memory-constrained machines.
+// llama3.2:1b needs ~1.3GB to run; the 3b/8b tiers OOM on laptops with little
+// free RAM. Users can pick a larger model on Connections if they have the headroom.
+export const DEFAULT_MODEL = 'llama3.2:1b';
 const OLLAMA_URL = 'http://127.0.0.1:11434';
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 

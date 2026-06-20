@@ -15,6 +15,25 @@ function cfg() {
   };
 }
 
+// Memory discipline: cap the context window (the biggest lever after model
+// size) and let Ollama unload the model after a short idle instead of pinning
+// it in RAM. Applied to every request.
+const OPTS = { num_ctx: 4096 };
+const KEEP_ALIVE = '5m';
+
+/** Parse a model's parameter size in billions from its tag (e.g. "llama3.2:1b" → 1). */
+const paramB = (name: string): number => {
+  const m = /[:-](\d+(?:\.\d+)?)b\b/i.exec(name);
+  return m ? parseFloat(m[1]) : Infinity;
+};
+
+/** Make Ollama's OOM failures actionable instead of a bare status code. */
+function memoryHint(msg: string): string {
+  return /memory|resource|allocat|out of|oom/i.test(msg)
+    ? `${msg} — this model needs more free RAM than is available. Pull a smaller one (\`ollama pull llama3.2:1b\`) and pick it on Connections.`
+    : msg;
+}
+
 /** Probe Ollama: is it running, what models are installed, which is selected? */
 export async function agentStatus(): Promise<AgentStatus> {
   const { url, model } = cfg();
@@ -23,7 +42,10 @@ export async function agentStatus(): Promise<AgentStatus> {
     if (!res.ok) throw new Error(`Ollama responded ${res.status}`);
     const j = (await res.json()) as { models?: { name: string }[] };
     const models = (j.models ?? []).map((m) => m.name);
-    const selected = model && models.includes(model) ? model : models[0] ?? '';
+    // Default to the SMALLEST installed model so a memory-tight machine gets a
+    // model it can actually load; the operator can override on Connections.
+    const smallest = [...models].sort((a, b) => paramB(a) - paramB(b))[0] ?? '';
+    const selected = model && models.includes(model) ? model : smallest;
     if (selected && selected !== model) setSetting('agent_model', selected);
     return { provider: 'ollama', url, reachable: true, models, model: selected };
   } catch (e) {
@@ -54,6 +76,8 @@ export async function agentChat(messages: ChatMessage[], h: StreamHandlers): Pro
   const payload = {
     model,
     stream: true,
+    keep_alive: KEEP_ALIVE,
+    options: OPTS,
     messages: [
       { role: 'system', content: SYSTEM_PROMPT },
       { role: 'system', content: `CURRENT HUB STATE:\n${buildContext()}` },
@@ -72,7 +96,7 @@ export async function agentChat(messages: ChatMessage[], h: StreamHandlers): Pro
       // failing to load, and the operator needs to know why.
       const detail = await res.text().catch(() => '');
       const parsed = detail && (() => { try { return JSON.parse(detail).error as string; } catch { return ''; } })();
-      throw new Error(`Ollama chat failed (${res.status})${parsed || detail ? ` — ${parsed || detail.slice(0, 300)}` : ''}`);
+      throw new Error(memoryHint(`Ollama chat failed (${res.status})${parsed || detail ? ` — ${parsed || detail.slice(0, 300)}` : ''}`));
     }
 
     const reader = res.body.getReader();
@@ -148,7 +172,8 @@ export async function agentSweep(): Promise<SweepResult> {
     const res = await fetch(`${url}/api/chat`, {
       method: 'POST', headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
-        model, stream: false, format: 'json', options: { temperature: 0.2 },
+        model, stream: false, format: 'json', keep_alive: KEEP_ALIVE,
+        options: { ...OPTS, temperature: 0.2 },
         messages: [
           { role: 'system', content: SWEEP_PROMPT },
           { role: 'user', content: `HUB STATE:\n${buildContext()}\n\nReturn the JSON object of flags now.` },
@@ -158,7 +183,7 @@ export async function agentSweep(): Promise<SweepResult> {
     if (!res.ok) {
       const detail = await res.text().catch(() => '');
       const parsed = detail && (() => { try { return JSON.parse(detail).error as string; } catch { return ''; } })();
-      return { ran: false, created: 0, considered: 0, error: `Ollama sweep failed (${res.status})${parsed || detail ? ` — ${parsed || detail.slice(0, 200)}` : ''}` };
+      return { ran: false, created: 0, considered: 0, error: memoryHint(`Ollama sweep failed (${res.status})${parsed || detail ? ` — ${parsed || detail.slice(0, 200)}` : ''}`) };
     }
     const j = (await res.json()) as { message?: { content?: string } };
     const flags = parseFlags(j.message?.content ?? '');
@@ -195,7 +220,7 @@ export async function generateReviewText(): Promise<string> {
   const res = await fetch(`${url}/api/chat`, {
     method: 'POST', headers: { 'content-type': 'application/json' },
     body: JSON.stringify({
-      model, stream: false,
+      model, stream: false, keep_alive: KEEP_ALIVE, options: OPTS,
       messages: [
         { role: 'system', content: SYSTEM_PROMPT },
         { role: 'system', content: `CURRENT HUB STATE:\n${buildContext()}` },
@@ -206,7 +231,7 @@ export async function generateReviewText(): Promise<string> {
   if (!res.ok) {
     const detail = await res.text().catch(() => '');
     const parsed = detail && (() => { try { return JSON.parse(detail).error as string; } catch { return ''; } })();
-    throw new Error(`Ollama review failed (${res.status})${parsed || detail ? ` — ${parsed || detail.slice(0, 200)}` : ''}`);
+    throw new Error(memoryHint(`Ollama review failed (${res.status})${parsed || detail ? ` — ${parsed || detail.slice(0, 200)}` : ''}`));
   }
   const j = (await res.json()) as { message?: { content?: string } };
   const text = (j.message?.content ?? '').trim();

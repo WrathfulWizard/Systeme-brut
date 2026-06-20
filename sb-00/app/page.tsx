@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import HubFrame from '@/components/HubFrame';
 import { useSb } from './providers';
-import type { ChatMessage, ModelPullStatus } from '@/lib/types';
+import type { ModelPullStatus } from '@/lib/types';
 
 const STARTERS = [
   'Review my current state.',
@@ -13,78 +13,27 @@ const STARTERS = [
 ];
 
 export default function Sigma() {
-  const { agent, refreshAgent, isDesktop, sweep, modelPull } = useSb();
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const { agent, refreshAgent, isDesktop, sweep, modelPull,
+    chat, chatStreaming, briefingActive, sendChat, reviewChat, resetChat } = useSb();
   const [input, setInput] = useState('');
-  const [streaming, setStreaming] = useState(false);
   const [sweeping, setSweeping] = useState(false);
   const [sweepNote, setSweepNote] = useState('');
-  const [briefing, setBriefing] = useState(false);   // first message is the launch briefing
   const chatRef = useRef<HTMLDivElement>(null);
 
-  // The launch briefing SB-Σ prepared while the app booted — seed it as the
-  // opening message so a full review is waiting the moment the hub appears.
-  useEffect(() => {
-    if (!window.sb) return;
-    // The boot splash covers the hub until the briefing resolves, so messages are
-    // empty when this fires — seed it as the opening turn. `seeded` keeps the two
-    // signals (initial fetch + push) from double-seeding; no side effect runs
-    // inside the state updater.
-    let seeded = false;
-    const seed = (text?: string) => {
-      if (!text || seeded) return;
-      seeded = true;
-      setBriefing(true);
-      setMessages((m) => (m.length ? m : [{ role: 'assistant', content: text }]));
-    };
-    window.sb.getStartupReview().then((r) => { if (r.status === 'ready') seed(r.text); }).catch(() => {});
-    const off = window.sb.onReviewReady((r) => { if (r.status === 'ready') seed(r.text); });
-    return off;
-  }, []);
-
-  useEffect(() => {
-    if (!window.sb) return;
-    const offT = window.sb.onAgentToken((chunk) => {
-      setMessages((m) => {
-        const last = m[m.length - 1];
-        if (last?.role === 'assistant') return [...m.slice(0, -1), { ...last, content: last.content + chunk }];
-        return [...m, { role: 'assistant', content: chunk }];
-      });
-    });
-    const offD = window.sb.onAgentDone(() => setStreaming(false));
-    const offE = window.sb.onAgentError((msg) => {
-      setStreaming(false);
-      setMessages((m) => {
-        const last = m[m.length - 1];
-        const note = `⚠ ${msg}`;
-        if (last?.role === 'assistant' && last.content === '') return [...m.slice(0, -1), { role: 'assistant', content: note }];
-        return [...m, { role: 'assistant', content: note }];
-      });
-    });
-    return () => { offT(); offD(); offE(); };
-  }, []);
-
-  useEffect(() => { chatRef.current?.scrollTo(0, chatRef.current.scrollHeight); }, [messages]);
+  // chat / briefing / streaming now live in the provider, so they persist across
+  // node navigation. This page just renders them and drives input.
+  useEffect(() => { chatRef.current?.scrollTo(0, chatRef.current.scrollHeight); }, [chat]);
 
   const ready = isDesktop && agent?.reachable && !!agent.model;
 
-  const send = async (text: string) => {
-    if (!window.sb || !text.trim() || streaming || !ready) return;
-    const history: ChatMessage[] = [...messages, { role: 'user', content: text.trim() }];
-    setMessages([...history, { role: 'assistant', content: '' }]);
-    setInput(''); setStreaming(true);
-    await window.sb.agentChat(history);
-  };
-
-  const review = async () => {
-    if (!window.sb || streaming || !ready) return;
-    setMessages((m) => [...m, { role: 'assistant', content: '' }]);
-    setStreaming(true);
-    await window.sb.agentReview();
+  const send = (text: string) => {
+    if (!text.trim() || chatStreaming) return;
+    setInput('');
+    void sendChat(text);
   };
 
   const sweepNow = async () => {
-    if (!ready || sweeping || streaming) return;
+    if (!ready || sweeping || chatStreaming) return;
     setSweeping(true);
     setSweepNote('SB-Σ is sweeping every node…');
     const r = await sweep();
@@ -104,6 +53,10 @@ export default function Sigma() {
           <div className="sigma-head">
             <span className="title">SB-Σ // Synthesizer</span>
             <span className="meta">
+              {ready && chat.length > 0 && (
+                <button className="btn" style={{ marginRight: 10, padding: '4px 9px', fontSize: 9 }}
+                  disabled={chatStreaming} onClick={resetChat}>New chat</button>
+              )}
               {!isDesktop ? 'desktop only'
                 : agent?.reachable
                   ? <>local · <span className="ok">{agent.model || 'no model'}</span></>
@@ -116,7 +69,7 @@ export default function Sigma() {
           ) : (
             <>
               <div className="chat" ref={chatRef}>
-                {messages.length === 0 ? (
+                {chat.length === 0 ? (
                   <div className="chat-empty">
                     SB-Σ reads every screen — training, pharmacology, substrate — and answers from your live numbers.
                     Nothing leaves this machine.
@@ -124,10 +77,10 @@ export default function Sigma() {
                       {STARTERS.map((s) => <button key={s} className="btn" onClick={() => send(s)}>{s}</button>)}
                     </div>
                   </div>
-                ) : messages.map((m, i) => {
-                  const isBriefing = briefing && i === 0 && m.role === 'assistant';
+                ) : chat.map((m, i) => {
+                  const isBriefing = briefingActive && i === 0 && m.role === 'assistant';
                   return (
-                    <div key={i} className={`msg ${m.role === 'user' ? 'user' : 'sigma'}${isBriefing ? ' briefing' : ''}${streaming && i === messages.length - 1 && m.role === 'assistant' ? ' streaming' : ''}`}>
+                    <div key={i} className={`msg ${m.role === 'user' ? 'user' : 'sigma'}${isBriefing ? ' briefing' : ''}${chatStreaming && i === chat.length - 1 && m.role === 'assistant' ? ' streaming' : ''}`}>
                       <span className="who">{m.role === 'user' ? 'You' : isBriefing ? 'SB-Σ // Launch briefing' : 'SB-Σ'}</span>{m.content}
                     </div>
                   );
@@ -142,9 +95,9 @@ export default function Sigma() {
                   onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(input); } }}
                 />
                 <div className="btnrow-inline" style={{ flexDirection: 'column' }}>
-                  <button className="btn primary" disabled={streaming || !input.trim()} onClick={() => send(input)}>Send</button>
-                  <button className="btn" disabled={streaming || sweeping} onClick={review}>Review</button>
-                  <button className="btn" disabled={streaming || sweeping} onClick={sweepNow} title="SB-Σ audits every node and raises persistent flags">
+                  <button className="btn primary" disabled={chatStreaming || !input.trim()} onClick={() => send(input)}>Send</button>
+                  <button className="btn" disabled={chatStreaming || sweeping} onClick={() => reviewChat()}>Review</button>
+                  <button className="btn" disabled={chatStreaming || sweeping} onClick={sweepNow} title="SB-Σ audits every node and raises persistent flags">
                     {sweeping ? 'Sweeping…' : 'Sweep'}
                   </button>
                 </div>
