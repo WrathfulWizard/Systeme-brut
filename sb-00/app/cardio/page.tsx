@@ -3,9 +3,12 @@
 import { useState } from 'react';
 import HubFrame from '@/components/HubFrame';
 import Ascii from '@/components/Ascii';
+import VBars from '@/components/VBars';
 import { asciiBars } from '@/lib/ascii';
 import { useSnapshot } from '../providers';
-import type { Sport, CardioPoint } from '@/lib/types';
+import type { Sport, CardioPoint, ProgressPeriod } from '@/lib/types';
+
+const RANGE_LABEL: Record<ProgressPeriod, string> = { W: 'Week', M: 'Month', '3M': '3 Months', '6M': '6 Months', Y: 'Year' };
 
 const SPORT_LABEL: Record<Sport, string> = { run: 'Run', ride: 'Ride', swim: 'Swim' };
 // Shoes worn past ~700–800 km lose midsole rebound — flag the high-mileage ones.
@@ -35,6 +38,10 @@ export default function Cardio() {
   const pct = Math.round((cardioGoal.longest / cardioGoal.target) * 100);
   const PERIODS: PeriodKey[] = ['W', 'M', '3M', '6M', 'Y'];
   const ch = cardioHealth;
+  const hr = useSnapshot().heartRate;
+  const [hrView, setHrView] = useState<'24H' | ProgressPeriod>('24H');
+  const hrSeries = hrView === '24H' ? hr.hourly : hr.ranges[hrView];
+  const hrAsOf = hr.updatedAt ? new Date(hr.updatedAt) : null;
 
   return (
     <div className="page">
@@ -69,29 +76,51 @@ export default function Cardio() {
           </div>
         </div>
 
-        <div className="block">
-          <p className="eyebrow">Cardio health — VO₂max · resting HR · heart rate</p>
-          {(ch.vo2max != null || ch.restingHr != null || ch.hrv != null || ch.heartRate != null) ? (
+        {/* ---- HEART — the command readout ------------------------------------ */}
+        <div className="block heart-block">
+          <div className="heart-head">
+            <p className="eyebrow" style={{ margin: 0 }}>Heart</p>
+            <div className="hr-toggle">
+              {(['24H', 'W', 'M', '3M', '6M', 'Y'] as const).map((k) => (
+                <button key={k} className={`wbtn${hrView === k ? ' on' : ''}`} onClick={() => setHrView(k)}>{k}</button>
+              ))}
+            </div>
+          </div>
+
+          {(hr.current != null || hr.resting != null || ch.vo2max != null || ch.hrv != null || hrSeries.length > 0) ? (
             <>
-              <div className="bodycomp-now">
-                {ch.vo2max != null && <span><b>{ch.vo2max}</b> VO₂max</span>}
-                {ch.restingHr != null && <span><b>{ch.restingHr}</b> resting HR</span>}
-                {ch.heartRate != null && <span><b>{Math.round(ch.heartRate)}</b> bpm heart rate</span>}
-                {ch.hrv != null && <span><b>{ch.hrv}</b> HRV ms</span>}
+              <div className="hr-stats">
+                {hr.current != null && <div className="hr-stat"><b>{Math.round(hr.current)}</b><span>bpm now</span></div>}
+                {hr.resting != null && <div className="hr-stat"><b>{Math.round(hr.resting)}</b><span>resting</span></div>}
+                {ch.hrv != null && <div className="hr-stat"><b>{ch.hrv}</b><span>HRV ms</span></div>}
+                {ch.vo2max != null && <div className="hr-stat"><b>{ch.vo2max}</b><span>VO₂max</span></div>}
+                {hrAsOf && <div className="hr-asof">as of {hrAsOf.toLocaleString([], { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}</div>}
               </div>
-              {ch.vo2Trend.length > 1 ? (
+
+              <p className="eyebrow hr-cap">
+                {hrView === '24H' ? 'Heart rate · last 24 hours (hourly avg · min–max band)' : `Heart rate · ${RANGE_LABEL[hrView]} (avg · min–max band)`}
+              </p>
+              <VBars points={hrSeries} unit="bpm" height={hrView === '24H' ? 150 : 138} />
+              {hrView !== '24H' && ch.vo2Trend.length > 1 && (
                 <>
-                  <p className="eyebrow" style={{ fontSize: 10 }}>VO₂max trend</p>
+                  <p className="eyebrow" style={{ fontSize: 10, marginTop: 16 }}>VO₂max trend</p>
                   <Ascii rows={asciiBars(ch.vo2Trend.map((v) => ({ label: v.date, value: v.value, display: String(v.value) })), 20)} />
-                </>
-              ) : ch.hrTrend.length > 1 && (
-                <>
-                  <p className="eyebrow" style={{ fontSize: 10 }}>Heart rate trend (bpm)</p>
-                  <Ascii rows={asciiBars(ch.hrTrend.map((v) => ({ label: v.date, value: v.value, display: String(Math.round(v.value)) })), 20)} />
                 </>
               )}
             </>
-          ) : <p className="synced-note">No cardio-health data yet — push Apple Health (Health Auto Export → the endpoint on Connections). Select Heart Rate, Resting Heart Rate, or VO₂max.</p>}
+          ) : <p className="synced-note">No heart data yet — push Apple Health (Health Auto Export → the endpoint on Connections). Select Heart Rate, Resting Heart Rate, HRV or VO₂max.</p>}
+
+          <style>{`
+            .heart-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; flex-wrap: wrap; }
+            .hr-toggle { display: flex; gap: 5px; }
+            .hr-toggle .wbtn { padding: 3px 8px; }
+            .hr-stats { display: flex; align-items: baseline; gap: 22px; flex-wrap: wrap; margin-bottom: 14px; }
+            .hr-stat { display: flex; flex-direction: column; line-height: 1; font-family: var(--font-mono); }
+            .hr-stat b { font-size: 26px; font-weight: 700; color: var(--text); letter-spacing: -0.01em; }
+            .hr-stat span { font-size: 9px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--dim); margin-top: 5px; }
+            .hr-asof { margin-left: auto; align-self: flex-end; font-family: var(--font-mono); font-size: 9px; color: var(--dim); letter-spacing: 0.04em; }
+            .hr-cap { font-size: 10px; margin: 0 0 2px; }
+          `}</style>
         </div>
 
         <div className="block">

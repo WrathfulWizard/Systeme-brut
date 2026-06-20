@@ -83,6 +83,38 @@ export const seedSnapshot: Snapshot = {
     rhrTrend: [{ date: '04.01', value: 52 }, { date: '05.01', value: 50 }, { date: '06.01', value: 48 }],
     hrTrend: [{ date: '04.01', value: 64 }, { date: '05.01', value: 62 }, { date: '06.01', value: 61 }],
   },
+  heartRate: {
+    current: 61, resting: 48, updatedAt: '2026-06-20T07:00:00.000Z',
+    hourly: [
+      { label: '00:00', value: 53, min: 49, max: 58 }, { label: '01:00', value: 51, min: 48, max: 55 },
+      { label: '02:00', value: 50, min: 47, max: 54 }, { label: '03:00', value: 49, min: 46, max: 53 },
+      { label: '04:00', value: 50, min: 47, max: 55 }, { label: '05:00', value: 52, min: 48, max: 57 },
+      { label: '06:00', value: 58, min: 51, max: 66 }, { label: '07:00', value: 64, min: 55, max: 78 },
+      { label: '08:00', value: 72, min: 60, max: 96 }, { label: '09:00', value: 78, min: 62, max: 121 },
+      { label: '10:00', value: 69, min: 58, max: 104 }, { label: '11:00', value: 66, min: 57, max: 88 },
+      { label: '12:00', value: 71, min: 59, max: 99 }, { label: '13:00', value: 68, min: 58, max: 92 },
+      { label: '14:00', value: 65, min: 56, max: 84 }, { label: '15:00', value: 67, min: 57, max: 90 },
+      { label: '16:00', value: 74, min: 60, max: 112 }, { label: '17:00', value: 88, min: 64, max: 148 },
+      { label: '18:00', value: 96, min: 68, max: 162 }, { label: '19:00', value: 79, min: 62, max: 118 },
+      { label: '20:00', value: 68, min: 58, max: 86 }, { label: '21:00', value: 62, min: 55, max: 74 },
+      { label: '22:00', value: 57, min: 52, max: 64 }, { label: '23:00', value: 54, min: 50, max: 60 },
+    ],
+    ranges: {
+      W: [
+        { label: '06.14', value: 64, min: 47, max: 154 }, { label: '06.15', value: 62, min: 46, max: 138 },
+        { label: '06.16', value: 66, min: 48, max: 161 }, { label: '06.17', value: 63, min: 47, max: 142 },
+        { label: '06.18', value: 61, min: 46, max: 133 }, { label: '06.19', value: 65, min: 48, max: 157 },
+        { label: '06.20', value: 60, min: 45, max: 121 },
+      ],
+      M: Array.from({ length: 30 }, (_, i) => ({
+        label: `0${5 + Math.floor((i + 22) / 31)}.${String(((i + 21) % 31) + 1).padStart(2, '0')}`,
+        value: 60 + Math.round(6 * Math.sin(i / 3)), min: 45 + (i % 4), max: 130 + (i % 7) * 5,
+      })),
+      '3M': Array.from({ length: 13 }, (_, i) => ({ label: `0${4 + Math.floor(i / 5)}.0${(i % 5) + 1}`, value: 62 + Math.round(4 * Math.sin(i / 2)), min: 46, max: 140 + i })),
+      '6M': Array.from({ length: 13 }, (_, i) => ({ label: `0${1 + Math.floor(i / 2)}.1${i % 2}`, value: 63 + Math.round(5 * Math.cos(i / 2)), min: 47, max: 145 })),
+      Y: Array.from({ length: 12 }, (_, i) => ({ label: `25.${String(i + 7).padStart(2, '0')}`.replace('25.13', '26.01'), value: 64 + Math.round(4 * Math.sin(i)), min: 46, max: 150 })),
+    },
+  },
   gear: [
     { id: 1, name: 'Nike Vaporfly 3', kind: 'shoe', km: 214.6, retired: false, source: 'strava' },
     { id: 2, name: 'Hoka Clifton 9', kind: 'shoe', km: 488.2, retired: false, source: 'strava' },

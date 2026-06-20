@@ -34,16 +34,50 @@ const WEARABLE_METRICS: Record<string, string> = {
   vo2_max: 'vo2_max',
 };
 
-// Apple Health dietary metric → micronutrient (nutrient, kind, unit, target)
+/** Normalize a metric name so HAE naming drift can't break the mapping:
+ *  "dietary_vitamin_c" / "vitamin_c" / "Vitamin C" all collapse to "vitaminc". */
+const norm = (s: string) => s.toLowerCase().replace(/^dietary_/, '').replace(/[^a-z0-9]/g, '');
+
+// Macronutrients (normalized name → daily-log column). Cronometer Gold writes
+// these into Apple Health, so the diet rides the same pipe as wearables.
+const MACRO: Record<string, 'kcal' | 'p' | 'c' | 'f' | 'fb'> = {
+  energy: 'kcal', activeenergydietary: 'kcal', calories: 'kcal',
+  protein: 'p',
+  carbohydrates: 'c', carbs: 'c', netcarbs: 'c',
+  totalfat: 'f', fattotal: 'f', fat: 'f',
+  fiber: 'fb',
+};
+
+// Bodyweight (Cronometer/scale → Apple Health). Drives the Substrate weight trend.
+const WEIGHT_NAMES = new Set(['bodymass', 'weightbodymass', 'weight']);
+
+// Full micronutrient set — normalized name → (nutrient, kind, unit, target).
+// Labels mirror the Cronometer CSV path exactly so the two sources merge in the
+// Substrate readout instead of showing duplicates.
 const DIETARY_MICRO: Record<string, [string, string, string, number | null]> = {
   sodium: ['Sodium', 'electrolyte', 'mg', 2300],
   potassium: ['Potassium', 'electrolyte', 'mg', 3400],
   magnesium: ['Magnesium', 'mineral', 'mg', 400],
   calcium: ['Calcium', 'mineral', 'mg', 1000],
-  vitamin_c: ['Vitamin C', 'vitamin', 'mg', 90],
-  vitamin_d: ['Vitamin D', 'vitamin', 'IU', 600],
-  vitamin_b12: ['Vitamin B12', 'vitamin', 'µg', 2.4],
+  iron: ['Iron', 'mineral', 'mg', 8],
+  zinc: ['Zinc', 'mineral', 'mg', 11],
+  phosphorus: ['Phosphorus', 'mineral', 'mg', 700],
+  selenium: ['Selenium', 'mineral', 'µg', 55],
+  copper: ['Copper', 'mineral', 'mg', 0.9],
+  manganese: ['Manganese', 'mineral', 'mg', 2.3],
+  vitamina: ['Vitamin A', 'vitamin', 'µg', 900],
+  vitaminc: ['Vitamin C', 'vitamin', 'mg', 90],
+  vitamind: ['Vitamin D', 'vitamin', 'IU', 600],
+  vitamine: ['Vitamin E', 'vitamin', 'mg', 15],
+  vitamink: ['Vitamin K', 'vitamin', 'µg', 120],
+  thiamin: ['Thiamin (B1)', 'vitamin', 'mg', 1.2],
+  riboflavin: ['Riboflavin (B2)', 'vitamin', 'mg', 1.3],
+  niacin: ['Niacin (B3)', 'vitamin', 'mg', 16],
+  vitaminb6: ['Vitamin B6', 'vitamin', 'mg', 1.7],
+  vitaminb12: ['Vitamin B12', 'vitamin', 'µg', 2.4],
   folate: ['Folate', 'vitamin', 'µg', 400],
+  saturatedfat: ['Saturated fat', 'fat', 'g', null],
+  cholesterol: ['Cholesterol', 'fat', 'mg', null],
 };
 
 /** Parse Health Auto Export dates: "YYYY-MM-DD HH:mm:ss +0000" or "YYYY-MM-DD". */
@@ -80,19 +114,24 @@ export function applyHealthExport(body: HAEBody, source = 'apple_health'): Apply
     VALUES (@d, @n, @kind, @amt, @unit, @tgt, @rda, 'cronometer_via_apple_health')
     ON CONFLICT(logged_on, nutrient, source) DO UPDATE SET amount=excluded.amount, rda_pct=excluded.rda_pct
   `);
+  const upBody = db.prepare(`
+    INSERT INTO body_metrics (measured_on, weight_kg) VALUES (@d, @w)
+    ON CONFLICT(measured_on) DO UPDATE SET weight_kg=COALESCE(excluded.weight_kg, weight_kg)
+  `);
 
   const tx = db.transaction(() => {
     for (const m of metrics) {
-      const name = m.name?.toLowerCase();
-      if (!name || !Array.isArray(m.data)) continue;
+      if (!m.name || !Array.isArray(m.data)) continue;
+      const raw = m.name.toLowerCase();
+      const n = norm(m.name);
 
-      if (WEARABLE_METRICS[name]) {
+      if (WEARABLE_METRICS[raw]) {
         for (const p of m.data) {
           const v = val(p); if (v == null) continue;
-          upWear.run({ at: iso(p.date), metric: WEARABLE_METRICS[name], value: v, unit: m.units ?? null, src: source });
+          upWear.run({ at: iso(p.date), metric: WEARABLE_METRICS[raw], value: v, unit: m.units ?? null, src: source });
           res.wearables++;
         }
-      } else if (name === 'sleep_analysis') {
+      } else if (raw === 'sleep_analysis') {
         for (const p of m.data) {
           if (!p.sleepStart || !p.sleepEnd) continue;
           const min = Math.round((p.asleep ?? 0) * 60) ||
@@ -100,26 +139,22 @@ export function applyHealthExport(body: HAEBody, source = 'apple_health'): Apply
           upSleep.run({ s: iso(p.sleepStart), e: iso(p.sleepEnd), min, src: source });
           res.sleep++;
         }
-      } else if (name === 'dietary_energy' || name === 'active_energy_dietary') {
+      } else if (WEIGHT_NAMES.has(n)) {
+        // Bodyweight from Cronometer/scale → drives the Substrate weight trend.
         for (const p of m.data) { const v = val(p); if (v == null) continue;
-          const k = day(p.date); dietaryDaily.set(k, { ...dietaryDaily.get(k), kcal: v }); }
-      } else if (name === 'protein') {
+          upWear.run({ at: iso(p.date), metric: 'body_mass', value: v, unit: m.units ?? 'kg', src: source });
+          upBody.run({ d: day(p.date), w: v });
+          res.wearables++;
+        }
+      } else if (MACRO[n]) {
+        const key = MACRO[n];
         for (const p of m.data) { const v = val(p); if (v == null) continue;
-          const k = day(p.date); dietaryDaily.set(k, { ...dietaryDaily.get(k), p: v }); }
-      } else if (name === 'carbohydrates') {
-        for (const p of m.data) { const v = val(p); if (v == null) continue;
-          const k = day(p.date); dietaryDaily.set(k, { ...dietaryDaily.get(k), c: v }); }
-      } else if (name === 'total_fat' || name === 'fat_total') {
-        for (const p of m.data) { const v = val(p); if (v == null) continue;
-          const k = day(p.date); dietaryDaily.set(k, { ...dietaryDaily.get(k), f: v }); }
-      } else if (name === 'fiber' || name === 'dietary_fiber') {
-        for (const p of m.data) { const v = val(p); if (v == null) continue;
-          const k = day(p.date); dietaryDaily.set(k, { ...dietaryDaily.get(k), fb: v }); }
-      } else if (DIETARY_MICRO[name]) {
-        const [nutrient, kind, unit, tgt] = DIETARY_MICRO[name];
+          const k = day(p.date); dietaryDaily.set(k, { ...dietaryDaily.get(k), [key]: v }); }
+      } else if (DIETARY_MICRO[n]) {
+        const [nutrient, kind, unit, tgt] = DIETARY_MICRO[n];
         for (const p of m.data) { const v = val(p); if (v == null) continue;
           upMicro.run({ d: day(p.date), n: nutrient, kind, amt: v, unit,
-            tgt, rda: tgt && kind === 'vitamin' ? Math.round((v / tgt) * 100) : null });
+            tgt, rda: tgt && kind !== 'electrolyte' && kind !== 'fat' ? Math.round((v / tgt) * 100) : null });
           res.micros++;
         }
       }

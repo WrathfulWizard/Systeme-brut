@@ -10,7 +10,7 @@ const LABEL: Record<SourceId, string> = {
 };
 const HOW: Record<SourceId, string> = {
   strava: 'Real API — OAuth, then runs/rides/swims pull on a 15-min schedule into Cardio.',
-  cronometer: 'Sign in once in the Cronometer window — the session is kept and auto-syncs hourly. CSV import is a no-login fallback.',
+  cronometer: 'Most reliable: enable Apple Health sync in Cronometer (Gold) — diet then rides the Apple Health push below, no login, fully automatic. Browser sign-in and CSV import are alternates.',
   apple_health: 'Push only — point the Health Auto Export app (or a Shortcut) at the endpoint below. Phone and PC must be on the same Wi-Fi.',
 };
 
@@ -108,7 +108,13 @@ export default function Connections() {
 
               {s === 'cronometer' && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  {/* Primary: sign in once in a real browser window → session persists, pulls hourly. */}
+                  {/* Recommended path: no scraping, no credentials, never breaks on a Cronometer redeploy. */}
+                  <p className="mono" style={{ fontSize: 11, color: 'var(--dim)', margin: 0, borderLeft: '2px solid var(--line)', paddingLeft: 10 }}>
+                    <span style={{ color: 'var(--text)' }}>Recommended ·</span> in the Cronometer app: Settings → Apple Health → enable.
+                    Cronometer writes your calories, macros, vitamins, minerals and weight into Apple Health, and the
+                    Apple Health push above carries them here automatically — no login, nothing to break.
+                  </p>
+                  {/* Alternate: sign in once in a real browser window → session persists, pulls hourly. */}
                   {c.status === 'connected'
                     ? <div className="btnrow-inline">
                         <span className="mono" style={{ fontSize: 11, color: 'var(--dim)', alignSelf: 'center' }}>Signed in · auto-syncs hourly.</span>
