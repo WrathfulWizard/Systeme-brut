@@ -84,7 +84,18 @@ assert.ok(r.wearables >= 4 && r.nutritionDays >= 1 && r.sleep >= 1 && r.micros >
 snap = getSnapshot();
 assert.ok(snap.calories7d.find((c) => c.kcal === 3010), 'new dietary day in calories7d');
 assert.ok(snap.cardioHealth.vo2max === 52.4 && snap.cardioHealth.restingHr === 48, 'VO2max + resting HR surfaced from Apple Health');
-console.log('✓ apple health ingest  ', JSON.stringify(r));
+
+// Import reasoning: re-importing the SAME window adds nothing (immutable samples
+// are insert-only), and a partial later export must not wipe existing macros.
+const rAgain = applyHealthExport({ data: { metrics: [
+  { name: 'heart_rate', units: 'count/min', data: [{ date: '2026-06-18 08:00:00 +0000', Avg: 58 }] },
+  { name: 'weight_body_mass', units: 'kg', data: [{ date: '2026-06-18 06:30:00 +0000', qty: 92.4 }] },
+  { name: 'dietary_energy', units: 'kcal', data: [{ date: '2026-06-18 23:00:00 +0000', qty: 3010 }] }, // calories only — no protein
+] } });
+assert.equal(rAgain.wearables, 0, 're-import of same timestamps adds zero new wearable samples');
+const protein18 = getSnapshot().dailyTotals.find((t) => t.nutrient === 'Protein');
+assert.ok(protein18 && /221/.test(protein18.today), 'partial re-import preserved existing protein (COALESCE)');
+console.log('✓ apple health ingest   (idempotent re-import · non-destructive partial)', JSON.stringify(r));
 
 // --- Cronometer CSV ---
 const cron = require('../dist-electron/desktop/ingest/cronometer.js');

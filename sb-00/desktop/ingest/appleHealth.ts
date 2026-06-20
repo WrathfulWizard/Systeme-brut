@@ -98,10 +98,14 @@ export function applyHealthExport(body: HAEBody, source = 'apple_health'): Apply
   const db = getDb();
   const res: ApplyResult = { wearables: 0, sleep: 0, nutritionDays: 0, micros: 0 };
 
+  // Import reasoning: a wearable reading is an IMMUTABLE point sample keyed by
+  // its timestamp, so re-importing the trailing days (the hourly Health Auto
+  // Export window) must only ADD genuinely-new samples, never rewrite existing
+  // ones — INSERT OR IGNORE, and we count only the rows that were actually new.
   const upWear = db.prepare(`
     INSERT INTO wearable_readings (measured_at, metric, value, unit, device_source)
     VALUES (@at, @metric, @value, @unit, @src)
-    ON CONFLICT(measured_at, metric, device_source) DO UPDATE SET value=excluded.value
+    ON CONFLICT(measured_at, metric, device_source) DO NOTHING
   `);
   const upSleep = db.prepare(`
     INSERT INTO sleep_sessions (started_at, ended_at, duration_min, device_source)
@@ -128,8 +132,8 @@ export function applyHealthExport(body: HAEBody, source = 'apple_health'): Apply
       if (WEARABLE_METRICS[raw]) {
         for (const p of m.data) {
           const v = val(p); if (v == null) continue;
-          upWear.run({ at: iso(p.date), metric: WEARABLE_METRICS[raw], value: v, unit: m.units ?? null, src: source });
-          res.wearables++;
+          const r = upWear.run({ at: iso(p.date), metric: WEARABLE_METRICS[raw], value: v, unit: m.units ?? null, src: source });
+          if (r.changes > 0) res.wearables++;   // only count newly-added samples
         }
       } else if (raw === 'sleep_analysis') {
         for (const p of m.data) {
@@ -145,9 +149,9 @@ export function applyHealthExport(body: HAEBody, source = 'apple_health'): Apply
         const toKg = /lb|pound/i.test(m.units ?? '') ? 0.453592 : 1;
         for (const p of m.data) { const v0 = val(p); if (v0 == null) continue;
           const v = Math.round(v0 * toKg * 100) / 100;
-          upWear.run({ at: iso(p.date), metric: 'body_mass', value: v, unit: 'kg', src: source });
+          const r = upWear.run({ at: iso(p.date), metric: 'body_mass', value: v, unit: 'kg', src: source });
           upBody.run({ d: day(p.date), w: v });
-          res.wearables++;
+          if (r.changes > 0) res.wearables++;   // only count newly-added samples
         }
       } else if (MACRO[n]) {
         const key = MACRO[n];
@@ -164,12 +168,18 @@ export function applyHealthExport(body: HAEBody, source = 'apple_health'): Apply
     }
 
     if (dietaryDaily.size) {
+      // COALESCE so a later PARTIAL export (e.g. Apple Health synced calories but
+      // not protein this hour) fills gaps instead of nulling out data already
+      // logged for that day — additive, never destructive.
       const upLog = db.prepare(`
         INSERT INTO nutrition_logs (logged_on, meal, calories_kcal, protein_g, carbs_g, fat_g, fiber_g, source)
         VALUES (@d, NULL, @kcal, @p, @c, @f, @fb, 'cronometer_via_apple_health')
         ON CONFLICT(logged_on, meal, source) DO UPDATE SET
-          calories_kcal=excluded.calories_kcal, protein_g=excluded.protein_g, carbs_g=excluded.carbs_g,
-          fat_g=excluded.fat_g, fiber_g=excluded.fiber_g
+          calories_kcal=COALESCE(excluded.calories_kcal, calories_kcal),
+          protein_g=COALESCE(excluded.protein_g, protein_g),
+          carbs_g=COALESCE(excluded.carbs_g, carbs_g),
+          fat_g=COALESCE(excluded.fat_g, fat_g),
+          fiber_g=COALESCE(excluded.fiber_g, fiber_g)
       `);
       for (const [d, v] of dietaryDaily) {
         upLog.run({ d, kcal: v.kcal ?? null, p: v.p ?? null, c: v.c ?? null, f: v.f ?? null, fb: v.fb ?? null });
