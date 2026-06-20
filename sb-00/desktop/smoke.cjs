@@ -61,10 +61,16 @@ const r = applyHealthExport({
     { name: 'dietary_energy', units: 'kcal', data: [{ date: '2026-06-18 23:00:00 +0000', qty: 3010 }] },
     { name: 'protein', units: 'g', data: [{ date: '2026-06-18 23:00:00 +0000', qty: 221 }] },
     { name: 'sodium', units: 'mg', data: [{ date: '2026-06-18 23:00:00 +0000', qty: 4100 }] },
+    // Full Cronometer-via-Apple-Health coverage: name drift + a vitamin + weight.
+    { name: 'dietary_vitamin_c', units: 'mg', data: [{ date: '2026-06-18 23:00:00 +0000', qty: 180 }] },
+    { name: 'iron', units: 'mg', data: [{ date: '2026-06-18 23:00:00 +0000', qty: 19 }] },
+    { name: 'weight_body_mass', units: 'kg', data: [{ date: '2026-06-18 06:30:00 +0000', qty: 92.4 }] },
     { name: 'sleep_analysis', data: [{ date: '2026-06-18', sleepStart: '2026-06-17 22:30:00 +0000', sleepEnd: '2026-06-18 06:10:00 +0000', asleep: 7.3 }] },
   ] },
 });
-assert.ok(r.wearables >= 1 && r.nutritionDays >= 1 && r.sleep >= 1 && r.micros >= 1, 'apple health applied');
+// wearables: heart_rate + resting + vo2 + weight = 4 · micros: sodium + vit C + iron = 3
+assert.ok(r.wearables >= 4 && r.nutritionDays >= 1 && r.sleep >= 1 && r.micros >= 3,
+  `apple health full mapping (wearables=${r.wearables}, micros=${r.micros})`);
 snap = getSnapshot();
 assert.ok(snap.calories7d.find((c) => c.kcal === 3010), 'new dietary day in calories7d');
 assert.ok(snap.cardioHealth.vo2max === 52.4 && snap.cardioHealth.restingHr === 48, 'VO2max + resting HR surfaced from Apple Health');
